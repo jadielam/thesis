@@ -1,4 +1,3 @@
-
 % Dissertation style file by John Shumway.
 % Attempts to meet requirements of the Graduate Education of Arizona State 
 % University
@@ -58,7 +57,7 @@ letterpaper}%,showframe,showcrop}
 \newlength{\fiveblanklines}\setlength{\fiveblanklines}{0.7 in}
 \newlength{\tenblanklines}\setlength{\tenblanklines}{1.5 in}
 \renewcommand\maketitle{
-  nlargethispage{0.5in} %make extra room where page number would go
+  \enlargethispage{0.5in} %make extra room where page number would go
 \thispagestyle{empty}
 \noindent
   \begin{minipage}[t][647.0truept][t]{\linewidth}
@@ -66,14 +65,14 @@ letterpaper}%,showframe,showcrop}
   \@title\\ \ \\
 by\\ \ \\
 \@author
-nd{center}
+\end{center}
 \vspace{\fiveblanklines}
 \begin{center}
 \singlespace
 A Thesis Presented in Partial Fulfillment\\
 of the Requirement for the Degree\\
 \@degreeName
-nd{center}
+\end{center}
 \vspace{\tenblanklines}
 \begin{center}
 \singlespace
@@ -82,14 +81,14 @@ Graduate Supervisory Committee:\\
 \ \\
 \@chair,  Chair\\
 \@memberOne\\
-nd{center}
+\end{center}
 \vfill
 \begin{center}
 \doublespace
 ARIZONA STATE UNIVERSITY\\
 \@gradmonth\ \@gradyear
-nd{center} 
-nd{minipage}
+\end{center} 
+\end{minipage}
 \clearpage
 }
 		
@@ -101,7 +100,7 @@ ARIZONA STATE UNIVERSITY\\
 \begin{center}
 \doublespace
 ABSTRACT
-nd{center}
+\end{center}
 } {
 \clearpage
 }
@@ -113,7 +112,7 @@ ABSTRACT
 \begin{center}
 \doublespace
 ACKNOWLEDGEMENTS
-nd{center}
+\end{center}
 } {
 \clearpage
 }
@@ -126,7 +125,7 @@ ACKNOWLEDGEMENTS
 \doublespace
 ACKNOWLEDGEMENTS
 {\itshape #1}
-nd{center}
+\end{center}
 \clearpage
 }
 
@@ -141,7 +140,7 @@ ACKNOWLEDGEMENTS
 \doublespace
 DEDICATION
 {\itshape #1}
-nd{center}
+\end{center}
 \clearpage	
 }
 		
@@ -151,7 +150,7 @@ DEDICATION
 \newcommand{\blankpage}{
 \begin{center}
 \doublespace
-nd{center}
+\end{center}
 } {
 \clearpage
 }
@@ -164,7 +163,7 @@ DEDICATION
 \doublespace
 PREFACE
 {\itshape #1}
-nd{center}
+\end{center}
 \clearpage	
 }
 			
@@ -176,7 +175,7 @@ PREFACE
 \doublespace
 LIST OF SYMBOLS
 {\itshape #1}
-nd{center}
+\end{center}
 \clearpage	
 }
 		
@@ -188,7 +187,7 @@ LIST OF SYMBOLS
 \doublespace
 BIOGRAPHICAL SKETCH
 {\itshape #1}
-nd{center}
+\end{center}
 \clearpage	
 }
 		
@@ -298,7 +297,7 @@ includehead,includefoot,letterpaper}%,showcrop,showframe}
 \typeout{\@chapapp\space\thechapter.}%
 \addcontentsline{toc}{chapter}%
 {\protect\numberline{\thechapter}#1}%
-lse
+\else
 \addcontentsline{toc}{chapter}{#1}%
 \fi
 \chaptermark{#1}%
@@ -309,7 +308,7 @@ includehead,includefoot,letterpaper}%,showcrop,showframe}
 %\addtocontents{lot}{\protect\addvspace{10\p@}}%
 \if@twocolumn
 \@topnewpage[\@makechapterhead{#2}]%
-lse
+\else
 \@makechapterhead{#2}%
 \@afterheading
 \fi}
@@ -333,8 +332,8 @@ includehead,includefoot,letterpaper}%,showcrop,showframe}
 \renewcommand{\@makechapterhead}[1]{
 \begin{center}
 \chaptername\ \thechapter\vspace{\baselineskip}\\
-\uppercasexpandafter{#1}\vspace{\baselineskip}
-nd{center}
+\uppercase\expandafter{#1}\vspace{\baselineskip}
+\end{center}
 }
 % Numbers chapters, sections, and subsections
 \setcounter{secnumdepth}{2}
@@ -366,7 +365,7 @@ includehead,includefoot,letterpaper}%,showcrop,showframe}
 %
 \renewcommand\bibname{References}
 \renewcommand\bibsection{
-\begin{center}\uppercasexpandafter{\bibname}\vspace{1em}nd{center}
+\begin{center}\uppercase\expandafter{\bibname}\vspace{1em}\end{center}
 }
 		
 %
