@@ -1,14 +1,26 @@
 \chapter{FOUNDATIONAL DESIGN PRINCIPLES OF THE SYSTEM}
-\section{Keeping provenance of the data}
+\label{chap:foundational}
+In this chapter we discuss some of the reasons for the design decisions taken when implementing the system's functionality.  We will discuss the design decisions as they relate to the main functionalities that we intend to implement.
+\section{Skipping unnecessary computations}
+
+The system will constantly be managing the computation of actions submitted to it by end-users. If a user submits the description of an action A to be computed, but the system has previously computed an action B that produced the exact same output that action A will produce when computed, then action A does not need to be computed.  The output of action B can be returned immediately as the output of action A.  
+
+How can we achieve such functionality? How can we know that actions A and B are equivalent? How can we know that an output dataset that we have in our filesystem is the final output of an entire workflow of computations that has been submitted to the system, and that we can skip the computation of not just one action, but of an entire collection of actions?  In order to be able to answer these questions, we need to explore what are the best strategies to follow when defining what is an \textbf{Action} and what is a \textbf{Workflow}.
+
 \subsection{Actions}
 
-The definition of what an action is will dictate the possibility of designing practical functionality that will allow us to optimize the time spent computing a workflow.  In essence, that practical functionality refers to skipping certain computations of actions because we have previously computed the datasets that are the output of those computations. 
+The way we define what an \textbf{action} is will dictate the possibility of designing practical functionality that will allow us to optimize the time spent computing a workflow. 
 
 Simplifying things, we can think of an action as a pure function $f:A \rightarrow B$.  Suppose that we are asked to compute $f(a)$.  If we have previously computed $b=g(c)$, and we can determine that $g=f$ and that $c=a$, then we can skip the computation of $f(a)$ (if it is that we still have $b$ among us.  Determining if $a$ and $c$ are equal to each other is trivial, but it can be time consuming if the inputs are big.  Determining if $f$ and $g$ are equivalent is more difficult and has deep theoretical ramifications (it is computationally imposible in the most broad sense, since the Halting Problem can be reduced to this problem).
 
 Also, comparing our actions to pure mathematical functions is not completely accurate.  \cite{wiki:pure_function} says that a pure function is a function that "always evaluates the same result value given the same argument values.  The function result cannot depend on any hidden information or state that may change while program execution proceeds." In some cases, as we will see in the next chapter, there will be nothing stopping our actions from reading values from environmental variables.
 
-Because of these difficulties, we need to devise a more practical approach to determine the equality of two actions.  That approach needs to be derived from a closer look to the functionality that we want our ideal system to embody.  The system will receive descriptions of actions as structured text.  As Figure \ref{fig:hypothetical_inputs} shows, those descriptions are simply a collection of parameters such as: path to input folders, path to the executable of the action, extra input parameters, etc.
+Because of these difficulties, we need to devise a more practical approach to determine the equivalency between two actions.  That approach needs to be derived from a closer look to the functionality that we want our ideal system to embody.  The system will receive descriptions of actions as structured text.  As Figure \ref{fig:hypothetical_inputs} shows, those descriptions are simply a collection of parameters such as: path to input folders, path to the executable (or source code) of the action, extra input parameters, etc.  The system uses that description to execute a corresponding computation which will produce an output as a file (or as a collection of files). We will be happy if our measure of equivalency satisfies the following two simple properties:
+
+\begin{enumerate}
+\item If two action descriptions will produce the same output \textbf{when executed in our controlled environment}, they should be considered equivalent.
+\item If two action descriptions will produce different output, they are inequivalent.
+\end{enumerate}
 
 \begin{figure}
 
@@ -30,8 +42,16 @@ Because of these difficulties, we need to devise a more practical approach to de
 \label{fig:hypothetical_inputs}
 \end{figure} 
 
+Both properties are challenging to carry out in a real setting. The way we have worded the first property allows for the possibility of partial success that can be assessed using accuracy measures.  As we have mentioned before, achieving 100\% accuracy is theoretically impossible, and achieving high accuracy is challenging, since there are infinitely many ways to express two equivalent computations.  In devising a measure of equivalency between two actions, we will be happy if it can achieve solid accuracy in at least the most common use cases.
+
+The second property must be satisfied all the time for our measure of equivalency to be considered usable. Still, we will see later in this chapter how we intend to interpret "all the time" not in a mathematically strict sense, but only in a practical sense.  Another challenge that we will have in order to satisfy the second property is that we still have to deal with the issue that the computation performed by that action might not be a \textbf{pure function}.  If the function output depends on hidden information or state that may change while program execution proceeds, or between different executions of the program (i.e.: "randomization" or access to outside environmental variables), then we cannot make a guarantee that our measure of equivalence will satisfy Property 2.  Because of that, we need to leave on the end user the ultimate responsibility of taking advantage of any computational gains our system could provide. If the end user thinks that the action description of an Action A that he is about to submit to the system might produce a different output to that of an existing output of a previously submitted action B that the system will flag as equivalent to action A, then the user must let the system know that action A computation cannot be skipped. 
+
+The description of an action submitted to the system becomes very relevant, since is the starting point to determine equivalence between actions. We could enforce a descriptive schema that is very descriptive (pardon the redundancy), and in that way have more elements to determine the equivalence between two actions, and maybe improve the accuracy of Property 1 of our equivalence measure.  But at the same time we might be making the system burdensome to use to the final user, since they will have to invest considerable time writing the descriptions of the actions that they are submitting to the system.  A good balance needs to be found here.
+
 
 \subsection{Workflows}
+A \textbf{workflow} is essentially a directed acyclic graph (DAG) where nodes correspond to actions and a directed edge from a node $a$ to a node $b$ means that the output of action $A$ is used as as input by action $B$.  A topological sort of the workflow dictates a possible order of execution of the actions computations: actions with no parents, or actions whose parents' output we already know, can start executing whenever computational resources are available. The fact that the workflow is a DAG (i.e.: has no cycles) guarantees that all actions in the workflow will be computed at some point in time, given that there are no malformed computations or failures.  Handling failures is a discussion that we leave for the next chapter, when we describe the implementation of this chapter's ideas.
+
 \section{Bounded storage space}
 \subsection{The History of Workflows}
 \section{A multi-user multi-component system}
