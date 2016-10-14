@@ -63,6 +63,7 @@ In order to analyze the running time complexity of such problem, let's look at a
 \begin{algorithm}
 \begin{singlespace}
 \caption{Naive dataset search algorithm:}
+\label{alg:dataset_search}
 \begin{algorithmic}[1]
 \Procedure{DatasetSearch}{$a, E$}
 	\For{dataset $d_i$ in storage}  
@@ -90,7 +91,6 @@ In order to analyze the running time complexity of such problem, let's look at a
 \EndProcedure
 \end{algorithmic}
 \end{singlespace}
-
 \end{algorithm}
 
 The algorithm goes over each dataset $d_i$ in storage, and uses a simple Breadth First Search (BFS) strategy to compare the DAGs induced by the ancestors of both $a$ and $d_i$.  If it finds a dataset $d_i$ for whose DAG is equivalent to the DAG that produced $a$, it returns $d_i$, otherwise, it returns $None$.  Notice that for simplicity, the algorithm assumes that parent actions of an action are given to the corresponding queue in a correct order, so that when we pop them from the queues to compare them, they correspond to each other.  In the next chapter (the implementation chapter) we will see how that assumption is valid for some action types, but not for others.
