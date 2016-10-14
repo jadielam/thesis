@@ -50,8 +50,98 @@ The description of an action submitted to the system becomes very relevant, sinc
 
 
 \subsection{Workflows}
-A \textbf{workflow} is essentially a directed acyclic graph (DAG) where nodes correspond to actions and a directed edge from a node $a$ to a node $b$ means that the output of action $A$ is used as as input by action $B$.  A topological sort of the workflow dictates a possible order of execution of the actions computations: actions with no parents, or actions whose parents' output we already know, can start executing whenever computational resources are available. The fact that the workflow is a DAG (i.e.: has no cycles) guarantees that all actions in the workflow will be computed at some point in time, given that there are no malformed computations or failures.  Handling failures is a discussion that we leave for the next chapter, when we describe the implementation of this chapter's ideas.
+A \textbf{workflow} is essentially a directed acyclic graph (DAG) where nodes correspond to actions or original datasets (datasets not derived from the computation of an action) and a directed edge from a node $a$ to a node $b$ means that the output of action $A$ is used as as input by action $B$.  A topological sort of the workflow dictates a possible order of execution of the actions computations: actions with no parents, or actions whose parents' output we already know, can start executing whenever computational resources are available. The fact that the workflow is a DAG (i.e.: has no cycles) guarantees that all actions in the workflow will be computed at some point in time, given that there are no malformed computations or failures.  Handling failures is a discussion that we leave for the next chapter, when we describe the implementation of this chapter's ideas.
+
+Before discussing more serious matters regarding workflows, we need to agree on some notational conventions.  We will identify actions with the lower letter $a$ ($a_1$, $a_2$, ..., $a_n$); and original datasets with the lower letter $o$, and derived datasets with the lower letter $d$.  We will also use functional notation to represent actions outputs an inputs.  If an action $a_1$ takes as input original dataset $o_1$, derived dataset $d_2$ and the output of action $a_3$ on original dataset $o_2$, we represent its output as follows: $d_1 = a_1(o_1, d_2, a_3(o_2))$.
+
+\subsubsection{Equivalence of actions in the workflow setting}
+Consider the previous example with the definition of action $a_1$. What strategy can we devise to efficiently determine if we have dataset $d_1$ in storage without having to calculate all the computations defined by the workflow where $a_1$ is? As a starting point, for every dataset $d_i$ kept in storage, we need to keep some accounting with the definition of the workflow that produced $d_i$.  Then we would need to search over those definitions until we find one that matches the current workflow submitted to the system.  
+
+In order to analyze the running time complexity of such problem, let's look at algorithm described in Algorithm \ref{alg:dataset_search}. The algorithm takes as input action $a$ and hypothetical procedure $E$, whose job is to compare two action descriptions for equivalency, returning \textbf{true} if they are equivalent, and \textbf{false} otherwise.
+
+
+\begin{algorithm}
+\begin{singlespace}
+\caption{Naive dataset search algorithm:}
+\begin{algorithmic}[1]
+\Procedure{DatasetSearch}{$a, E$}
+	\For{dataset $d_i$ in storage}  
+		\State $a_i \gets action(d_i)$ \Comment{$a_i$ is action that outputted $d_i$}
+		\State $Q \gets queue()$, $P \gets queue()$
+		\State $Q.add(d_i)$, $P.add(a)$
+		\State $areEqual \gets True$
+		\While{Q \textbf{not} empty \textbf{and} P \textbf{not} empty}
+			\State $q \gets pop(Q)$, $p \gets pop(P)$
+			
+			\If {E(q, p)}
+				\State $Q.addAll(parents(q))$ \Comment{parents of $q$ in the workflow}
+				\State $P.addAll(parents(p))$ \Comment{parents of $p$ in the workflow}
+			\Else
+				\State $areEqual \gets False$
+				\State \textbf{Break}
+			\EndIf
+			
+		\EndWhile
+		\If {$areEqual$ \textbf{and} $Q.size = 0$ \textbf{and} $P.size = 0$}
+			\Return $d_i$
+		\EndIf
+	\EndFor
+	\Return \textbf{None}
+\EndProcedure
+\end{algorithmic}
+\end{singlespace}
+
+\end{algorithm}
+
+The algorithm goes over each dataset $d_i$ in storage, and uses a simple Breadth First Search (BFS) strategy to compare the DAGs induced by the ancestors of both $a$ and $d_i$.  If it finds a dataset $d_i$ for whose DAG is equivalent to the DAG that produced $a$, it returns $d_i$, otherwise, it returns $None$.  Notice that for simplicity, the algorithm assumes that parent actions of an action are given to the corresponding queue in a correct order, so that when we pop them from the queues to compare them, they correspond to each other.  In the next chapter (the implementation chapter) we will see how that assumption is valid for some action types, but not for others.
+
+To analyze the running time of this algorithm, let $m$ be the number of datasets in storage, and let $M$ and $N$ be the number of nodes and of edges of the submitted workflow.  The running time of the algorithm would then be $O(m (M + N))$.  If we index the metadata of our stored datasets in a clever way, we can reduce that to a running time of $O(t (M + N))$ with $t << m$.
+
+But this approach will be problematic to implement for at least two reasons: First, $t$ will increase without bounds as the system ages. The space occupied by the index of the metadata will also increase, making it difficult to keep it all in memory for fast computations. The second reason is that indexing the metadata of a graph datastructure is not a trivial task.
+
+\subsubsection{The encryption alternative}
+Encryption is another strategy that can be used to determine if an action's output already exists in the storage system. Given an action node $a_i$ in a workflow, we can recursively compose the description of action $a_i$ together with the descriptions of its parent actions to produce a hash value that "uniquely" identifies the dataset $d_i$ produced by action $a_i$ as output.  We can then compare that hash value with the hash values corresponding to the actions of the datasets stored in the system in order to find an equivalent dataset.
+
+An algorithm describing the above situation is highly dependent on the semantic of the description of the actions.  Because of that, we leave its discussion to the next chapter.  But we have enough elements as to arrive to certain conclusions regarding the viability of the approach.  Firstly, comparing the hash value of action $a_i$ to the hash values of the datasets in the system is an action that can be done in constant time if the datasets are properly indexed.  Secondly, since no cryptographic function is perfect, we need to analyze what would be the probability of a clash between the hash signatures of non-equivalent actions.  
+
+An exhaustive mathematical analysis goes beyond the scope of this dissertation, but we do can make some educated estimations.  Assume that $n$ is the number of bits of the hash signatures produced by the encryption algorithm, and that D is the number of datasets currently in storage.  The question we want to answer is: What is the probability of any two of the datasets of having the same hash value?  There are $2^n$ possible hash values.  Assuming that all of them have the same probability of occurring, then the probability that all the $N$ hash values are different, $1 - p(N)$ is:
+
+\begin{multline}
+	1 - p(N) = 1 \times \frac{2^n - 1}{2^n} \times \frac{2^n - 2}{2^n} \times . . . \times \frac{2^n - N + 1}{2^n} \\ 
+	1 - p(N) = \frac{2^n \times 2^n - 1 \times . . . \times 2^n - N + 1}{2^{n^{N}}} \\ 
+	1 - p(N) = \frac{2^n !}{2^{n{^N}} (2^n - N)!} \\
+\end{multline}
+
+Then p(N) is the probability that at least two of the N hash values are the same.  For $n=80$ (SHA-1 function) and $N=1,000,000$, we have that the probability of a collision is $4.135580766728708e-13$.  This number can be considered acceptable for most practical purposes, but if for some reason it becomes unacceptable, the mechanism is still partially valid.  We only need to add a second step to the process.  In the first step we can still use the hash value of an action that is being submitted to the system to quickly find an already existing \textbf{tentative} dataset. Then we can compare the workflow that produced the tentative dataset to the workflow of the submitted action to exactly determine if they are equivalent.
 
 \section{Bounded storage space}
+Bounded storage space is the constraint that makes the problem we are trying to solve interesting. There are physical limitations and technical limitations that won't allow us to have unlimited space.  Therefore, at all moments in time, the system needs to decide which datasets to keep in storage and which datasets to delete.  The system also has to enforce its own decisions.
+
 \subsection{The History of Workflows}
+The concept of \textbf{History of Workflows} becomes useful once we add the constraint of bounded storage capacity to our system. Since we want to optimize the time of computing future workflows, the decision system is in reality an optimization problem that tries to "guess" which datasets will be more relevant in the future. What strategy should we use in order to optimize the computational time of future workflow submissions?  That is an open question that has multiple valid answers.  But whatever strategy we use to accurately predict which datasets might be needed in the future will need access to the history of workflows submitted to the system up to that point.  Because different strategies might need different things from the history of workflows, it is recommended to provide a flexible API that can be used to query the history of workflows to obtain a diverse set of statistics over specified periods of time and at different resolutions.
+
+\subsection{The Decision System}
+\label{sec:decision_system}
+The core functionality of the system is the Decision System that determines which datasets need to remain and which datasets need to be deleted from the storage of the system.  The Decision System can be run each time a new workflow is submitted to the system, or it can be run only when space occupied by stored datasets reaches a certain threshold of the total capacity of the system. The second option makes more sense, so we will define our interface with that in mind. The Decision System defines an interface that can be implemented by different algorithms to determine which datasets currently in storage need to be deleted. The interface takes the following elements as input:
+
+\begin{enumerate}
+\item The History of Workflows submitted to the system, $H = (W_1, W_2, ..., W_n)$, where each $W_i$ is a DAG. It is left to the algorithm to decide if it will use the entire history or only a subset of it.
+
+\item A set $D$ of datasets currently stored in the file system. 
+
+\item $s: D \to \mathtt{N} $, where $s(d_i)$ is the storage space in megabytes that dataset $d_i$ occupies in the file system.
+
+\item $t: A \to \mathtt{N}$, where $t(a_i)$ is the computational time in seconds that it takes to action $a_i$ to compute its output $d_i$.  If action $a_i$ has been computed multiple times, the average of those times is reported.
+
+\item $F$, the amount of space that we need to free on the file system.
+
+\end{enumerate}
+
+The algorithm outputs a set $B \subset D$ such that $\sum_{d \in B}{s(d)}$ is greater than or equal to $F$.  Set $B$ needs to be selected in such a way that there is no other subset $B'$ of $D$ of storage size equal or greater than $B$ such that if we remove from storage datasets of $B'$ instead of $B$, we would spend less time computing our future workflows. 
+
+\subsubsection{Literature Review of related problems}
+This section can be skipped without risking lack of understanding of the rest of the presentation, but for completeness sake we think that is necessary to review multiple efforts in the literature to solve problems similar to the one we have posed in Section \ref{sec:decision_system}. 
+
+Is not surprising that none of the related problems have been defined in the same way we have defined ours, so we want to offer some commentary on which of them we think are more relevant to problem in \ref{sec:decision_system} and why.
+
 \section{A multi-user multi-component system}

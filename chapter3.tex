@@ -1,0 +1,149 @@
+\chapter{IMPLEMENTATION OF THE SYSTEM}
+\section{Birdeye overview}
+Introduce the system and what it does. To the point that it takes you to the Hadoop ecosystem and
+how it uses it
+\subsection{The Hadoop ecosystem}
+\subsection{Configuration parameters}
+Talk about the configuration parameters used for the system such as namenode, oozieurl, etc.
+
+\section{The Workflow Definition Language}
+We have chosen the JSON format for the definition of workflows because its expressiveness is sufficient for what we need, and it is also very human readable. As shown in Figure \ref{fig:workflow_definition_language}, a workflow is made of a \textbf{name}, an \textbf{start action id}, an \textbf{end action id} and a \textbf{list of actions}. 
+
+\begin{figure}
+\begin{mdframed}
+\begin{singlespace}
+\begin{verbatim}
+
+
+{
+    "name": "Example Workflow",
+    "startActionId": 1,
+    "endActionId": 2,
+    "actions": [
+        {
+            "id": 1,
+            "name": "action1-name",
+            "type": "command-line",
+            .
+            .
+            .
+        },
+        {
+            "id": 2,
+            "name": "action1-name",
+            "parentActions": [
+                { 
+                    "id": 1,
+                }
+            ],
+            "type": "command-line",
+            .
+            .
+            .
+        }
+    ]
+}
+\end{verbatim}
+\end{singlespace}
+\end{mdframed}
+\caption{Workflow definition}
+\label{fig:workflow_definition_language}
+\end{figure}
+
+The workflow definition in Figure \ref{fig:workflow_definition_language} consists of two actions whose ids are 1 and 2 where action with id 2 must be executed after action with id id finishes. This is expressed by making action 1 a parent of action 2. Among the constraints that are imposed by the system we have the following:
+
+\begin{enumerate}
+\item A workflow most have at least one action.
+\item No two actions can have one same id in a workflow definition.
+\item If an action \textit{id} is referenced somewhere in the workflow definition (they can be referenced in \textit{startActionId}, \textit{endActionId}, and within the array of \textit{parentActions}), that action must be defined in the array of actions of the workflow.
+\item The \textit{parentActions} attribute of an action will define relationships among the actions that can be represented as a directed graph. Specifically, this directed graph must be a directed acyclic graph (DAG).
+\item This constraint can be derived from 4, but so that it is not overlooked, we state the rule explicitly here: The \textit{endAction} cannot be a parent or ascendant of the \textit{startAction}
+\end{enumerate}
+
+If one of the constraints is not satisfied, the server will throw an error at workflow submission time.
+
+\subsection{Actions}
+Actions must have \textit{id}, \textit{name} and \textit{type} attributes. They have two optional boolean attributes: \textit{forceComputation} and \textit{isManaged}. If \textit{forceComputation} is set to \textit{True}, it means that the action will be forced to compute its output regardless of if its dataset  already exists in storage or not. If it is set to \textit{False}, it means that the system determines if the action will be computed or not. The default is \textit{False}.
+
+If the attribute \textit{isManaged} is set to \textit{True}, it means that the path where the output of this action will be stored is determined and managed by the system. If \textit{isManaged} is set to \textit{False}, it means that the path where the output of this action will be stored is not determined or managed by the system, and that path must be provided by the user. The user needs to have Read/Write permissions to any path it provides, otherwise, the execution of the action will fail at the end. The default value for \textit{isManaged} is \textit{True}.
+
+Notice also how action names do not need to be unique. An action name is just a mnemonic resource to understand what the action does. Also depending on the action type, there might be other required attributes too. We currently support three kinds of actions: \textbf{Command-line actions}, \textbf{MapReduce v1.0 actions} and \textbf{MapReduce v2.0 actions}, and in the future we are planning to add support for \textbf{Spark actions} and \textbf{Sqoop actions}
+
+TODO: Explain how an action's dataset name is determined
+
+\subsubsection{Command Line Action}
+\subsubsection{MapReduce v1.0 Action}
+\subsubsection{MapReduce v2.0 Action}
+
+\section{The Action Manager}
+The Action Manager's purpose is to submit individual actions to the Hadoop cluster for computation. In our current implementation it uses \textbf{Apache Oozie} as an intermediary, but there is nothing in the system that restricts us from doing away with \textbf{Apache Oozie} in the future.
+
+On its current implementation, the Action Manager is ready to be distributed across different machines. That is, if there are multiple action managers running on different machines, they will not step up on each other toes, because they use the database as a mean of synchronization among them.
+
+The Action Manager works as follows:
+
+\begin{enumerate}
+\item It maintains a synchronized queue Q with the actions that need to be submitted to the Hadoop cluster. The queue is capacity bounded and supports operations that wait for the queue to become non-empty when retrieving an element, and wait for space to become available in the queue when storing an element. All operations are thread safe.
+\item The queue is filled by an \textbf{Action Scraper} entity that queries the database for actions that are ready to be submitted.
+\item The \textbf{Action Manager} takes new actions from the queue and hands them to a pool of \textbf{Action Submitter} threads that will submit the actions to Hadoop and will also update the state of those actions in the database.
+\end{enumerate}
+
+\subsection{Action States}
+In order to support a cluster of servers working as action managers and to avoid the need to add a dependency to a distributed coordination server such as \textbf{Apache Zookeper} we have implemented synchronization using the database as our shared resource and defining a synchronization oriented semantic for each of the different states an action can have.
+
+An action can be in one of the following states: \textit{WAITING}, \textit{READY}, \textit{PROCESSING}, \textit{SUBMITTED}, \textit{RUNNING}, \textit{FINISHED}, \textit{FAILED}, and \textit{KILLED}.  (See Table \ref{tab:action_states} for a complete reference).
+
+\begin{table}
+\begin{tabular}{| l | p{12cm} |}
+
+\hline
+\textbf{Action State} & \textbf{Description} \\ \hline
+WAITING & It means that the action has been submitted as part of a workflow and is waiting for parent actions to finish before it can be submitted to Hadoop.\\ \hline
+READY & The action is ready to be submitted to Hadoop because it either does not depend on any other action, or because all the actions on which it depends have finished their computations. \\ \hline
+PROCESSING & The ActionScraper found a READY action in the database and has placed it in the actions queue of the actions to be submitted. \\ \hline
+SUBMITTED & The action has been taken from the queue and has been submitted to Hadoop. \\ \hline
+RUNNING & Hadoop is running the computations that correspond to the action. \\ \hline
+FINISHED & Hadoop has finished executing the action successfully.\\ \hline
+FAILED & A run time error has occurred and the action did not finish executing.\\ \hline
+KILLED & The user killed the action after it started executing.\\ \hline
+\end{tabular}
+\caption{Action State Descriptions.\label{tab:action_states}}
+\end{table}
+
+\subsection{The Action Scraper}
+Every certain amount of time, the action scraper will query the database to find available actions and add them to the queue. Available actions are actions that are in the \textit{READY} state, or actions that have been in the \textit{PROCESSING} state for a long time. The reason why we add actions that have been in the \textit{PROCESSING} state for a long time is to account for the rare case where another \textbf{Action Manager} in another process started processing those actions, but because of some failure the process died before finish processing them.
+
+Before adding the action to the queue, the action scraper attempts to update the state of the action in the database to \textit{PROCESSING}. If the update fails because the action entity has changed in the database after it was queried by the scraper, then the scraper drops the action and does not add it to the \textbf{Action Manager} queue. Otherwise, if the update is successful, the action is added to the \textbf{Action Manager} queue. To illustrate how this synchronization technique is valid, consider the following example with action scrapers $A$ and $B$ and their corresponding action managers. Both scrapers $A$ and $B$ query the database for ready actions and both find action $a1$ to be in the $READY$ state. Without loss of generality, assume that $A$ is the first scraper to update the state of action $a1$ to \textit{PROCESSING}. When $B$ also attempts to update the state of action $a1$, it will realize that action $a1$ has already been changed by someone else, and it will immediately drop it.
+
+The synchronization technique described and exemplified in the above paragraph will be used multiple times by different components of the system. In general, that synchronization pattern can be applied in situations where multiple processes can potentially move an object $o$ from state $S1$ to state $S3$ (in the previous example $S1$ would be equivalent to our \textit{READY} state, and $S3$ to our \textit{SUBMITTED} state) but only one of the process should be allowed to do it. In order to solve the problem we create an intermediate state $S2$ (\textit{PROCESSING} in our case), and we let all the processes compete to be the first to change the state of $o$ to $S2$. All the loosing processes drop the processing of object $o$, and the winning process carries on.
+
+\subsection{The Action Submitter}
+The Action Manager is constantly taking new elements from the queue and passing them to the Action Submitter threads that take care of submitting the actions to Hadoop. The decision to include in the queue actions that have been in the \textit{PROCESSING} state for a long time makes the design of the Action Submitter more careful. The submitter first attempts to update the state of the action to \textit{SUBMITTED} in the database. If it succeeds, then it actually submits the action to Hadoop. If there is an error while submitting the action, then it changes the state of the action back to \textit{READY}, which gives that action the opportunity to be picked again by an \textbf{Action Scraper} at some point later on. As an area of future improvement, a ceiling should be imposed over the number of times an action fails when submitted to the cluster, otherwise, the system will keep trying to submit the action forever.
+
+\section{The Workflow Manager}
+Now that we have explained the \textbf{Action Manager}, we are in a better shape to understand the inner workings of the \textbf{Workflow Manager}. The \textbf{Workflow Manager} receives the workflows submitted to the system and determines which of the actions from the workflow need to actually be submitted to Hadoop for computation. Those actions are inserted into the database and can initially be in one of two states: \textit{WAITING} or \textit{READY}. If they are in a $READY$ state, any active \textbf{Action Manager} will pick them up and submit them to the cluster for computation. If they are in a $WAITING$ state they will eventually be submitted for execution once their parents finish executing. The process of how actions in the $WAITING$ state are notified that their parents finish executing will be discussed later when we discuss the \textbf{Callback System}.
+
+\subsection{Datasets}
+The \textbf{Workflow Manager} makes its decision on whether an action needs to be computed or not by exploring the state of the datasets that are the outputs of the action. A dataset is another important entity in our model. A dataset entity is an entry of a dataset information in the database; its dataset file is the physical file in the distributed file system. A dataset entry is always linked in the database to its corresponding action definition. Dataset entities can be in one of the following states at any given time: \textit{TO\_DELETE}, \textit{TO\_STORE}, \textit{TO\_LEAF}, \textit{STORED}, $LEAF$, $STORED\_TO\_DELETE$, $PROCESSING$, $DELETING$ and $DELETED$. (See Table \ref{tab:dataset_states} for a complete reference).
+
+\begin{table}
+\begin{tabular}{| l | p{12cm} |}
+\hline
+\textbf{Dataset State} & \textbf{Description} \\ \hline
+TO\_DELETE & The dataset file does not exist in the file system, but once it does, its dataset entry will be transitioned to state STORED\_TO\_DELETE. \\ \hline
+TO\_STORE & The dataset file does not exist in the file system, but once it does, its dataset entry state will be transitioned to STORED. \\ \hline
+TO\_LEAF & The dataset file does not exist yet in the file system, but once it does, its dataset entry state will be transitioned to the LEAF state. \\ \hline
+STORED & The dataset file is stored in the filesystem and it corresponds to an intermediate action. The dataset file will be stored in the file system until the decision algorithm determines in the future that is not optimal for the system to keep storing it anymore. \\ \hline
+LEAF & The dataset file is stored in the filesystem and it corresponds to a leaf action. Datasets of leaf actions are never removed by the system. They can be manually removed by the users. \\ \hline
+STORED\_TO\_DELETE & The dataset file is stored temporarily until all other actions that have claims to it as a dependency finish computing. Once all those actions finish computing, the dataset will be removed. \\ \hline
+PROCESSING & The dataset entry is being processed with the purpose of deleting its dataset file. This is a synchronization state. \\ \hline
+DELETING & The dataset file is being deleted. This is another synchronization state. \\ \hline
+DELETED & The dataset file has been deleted. \\ \hline
+\end{tabular}
+\caption{Dataset State Descriptions.\label{tab:dataset_states}}
+\end{table}
+
+The \textbf{Workflow Manager} processes all the actions of the submitted workflow, starting from the leaf actions in a Breadth-First-Search (BFS) manner If by analyzing the action it determines that the action needs to be computed, it calls the \textit{prepareForComputation} procedure on that action.  The \textit{prepareForComputation} procedure first creates an action object $P$ in the \textit{WAITING} state and inserts it to the database. Also, for each children $C$ of action $P$ that also needs to be computed, the system marks on the database that $C$ is depending on $P$, so that $C$ will need to wait for P output dataset before being ready to be computed. At last, the procedure adds all the parents of the action P to the queue if they have not already being added.
+
+The \textbf{Workflow Manager} makes the determination if an action needs to be computed as described in Algorithm \ref{alg:workflow_manager}
+
