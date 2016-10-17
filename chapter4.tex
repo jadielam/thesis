@@ -1,5 +1,5 @@
 \chapter{Evaluation methodology of the decision algorithms and results}
-\label{chapter:evaluation}
+\label{chap:evaluation}
 In this chapter we propose an evaluation methodology for the decision algorithms for the system.  We also report on the evaluation of the two different kinds of algorithms that we have implemented.
 
 Since it will be difficult to obtain enough real world workflows data to do an statistically valid evaluation of the system, we will use a probabilistic generator of workflows with the flexibility to adjust parameters to create different types of workloads.  This will give us the opportunity to do a more fine-grained evaluation and compare how the algorithms behave under different types of workloads.
@@ -12,15 +12,15 @@ To evaluate the the Decision System, our strategy will be to:
 \item Submit the history $H$ to Pingo for computation and record the \textbf{actual execution time}
 \item Compare the ideal execution time with the real execution time.  The higher the ratio of $actual/ideal$, the best the algorithm.
 \end{enumerate}
-\section{Workflows generator}
+\subsection{Workflows generator}
 Since there is not enough real data as to evaluate the behavior of our system, we have designed a workflows generator that probabilistically creates sequences of workflows given certain parameters.
 
 The sequence generator is composed of three probabilistic generators that work together to produce the history of of workflows.  See Appendix \ref{app:workflows_generator_user_guide} for information on how to use the generator.  We have also created a Java $COMMAND\_LINE$ action that takes as parameters the size of an output in megabytes, the time of execution in seconds, and a String to act as a differentiator.  Both the action's output and the computation time of the action are determined by the parameters passed to it.
 
-\subsection{The Action Generator}
+\subsubsection{The Action Generator}
 The first of the generators is the \textbf{Action Generator}.  It takes as input the number of actions to generate and the mean and variance parameters of two normal distributions, one for the size of outputs and another one for the computational time of the action.  It generates a list of actions, each one with a unique id and its corresponding randomly generated parameters. This list of actions will be used as a pool of actions from which the workflow generator will select actions to compose the workflows.
 
-\subsection{The Workflow Generator}
+\subsubsection{The Workflow Generator}
 The \textbf{Workflow Generator} is a little more complex piece of computation.  Its purpose is to generate a workflow (DAG) using as nodes from the actions created by the Action Generator.  You can find a Python implementation of the algorithm in Appendix \ref{app:workflow_generator_implementation}.  Roughly, the algorithm does the following:
 \begin{enumerate}
 \item Selects $n$ nodes from the composition of all previous workflows up to that point in the sequence of workflows. It takes good care that if any pair of nodes nodes $a$, $b$ among the $n$ nodes are related between each other (antecesor/succesor) relationship, then the nodes in between them are also included among the $n$ nodes.
@@ -32,6 +32,101 @@ The \textbf{Workflow Generator} is a little more complex piece of computation.  
 \item Use a greedy algorithm to create a directed acyclic graph that satisfies the constraints of number of children and number of parents a node will have in the best possible way and return the corresponding workflow.
 \end{enumerate}
 
-The parameters used to define the structure of the DAGs are good enough to produce most of the varieties of histories of workflows that we could imagine. For example, 
-\section{Ideal Execution Time calculation}
-The first step is to define what an ideal execution time of a history of workflows is, and also how to compute that execution time given a history of workflows.
+The parameters used to define the structure of the DAGs are good enough to produce most of the varieties of histories of workflows that we could imagine. For example, Figure \ref{fig:dag_tree} shows how we can generate tree DAGs with very high probability when we restrict the number of parents that an action can have to only one.  Figure \ref{fig:dag_complex} shows how to generate DAGs with more complex dependency relationships between nodes.  Last, Figure \ref{fig:dag_variety} shows an example of the varieties of graph produced when we increase the variance of the distributions.
+\begin{figure}
+\centering
+\includegraphics[scale = 0.5]{dag_tree}
+\caption{Example of a tree workflow that is produced with parameters: nb\_children.mean = 2, nb\_children.std =  1, nb\_parents.mean = 1, nb\_parents.std = 0.00001.}
+\label{fig:dag_tree}
+\end{figure}
+\begin{figure}
+\centering
+\includegraphics[scale = 0.5]{dag_interwinded}
+\caption{Example of DAG that is produced with parameters: nb\_children.mean = 2.1, nb\_children.std = 0.0001, nb\_parents.mean = 2.1, nb\_parents.std = 0.0001.}
+\label{fig:dag_complex}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[scale = 0.5]{variance_all}
+\caption{Example of four DAGs produced with parameters: nb\_children.mean = 2.1, nb\_children.std = 4.5, nb\_parents.mean = 2.1, nb\_parents.std = 4.5.}
+\label{fig:dag_variety}
+\end{figure}
+
+
+\subsection{Ideal Execution Time calculation}
+In this section we define what is /textbf{ideal execution time of a history of workflows}. We also discuss an algorithm on how to compute it.  But before diving into discussing our own definitions, we want to call the attention to the research done previously in this area, as described in Section \ref{sec:lit_review_algorithms}.  For our case, most of that research becomes relevant and applicable, not in the context of the \textbf{Decision System} of Pingo, but in the context of the metrics to evaluate the \textbf{Decision System}.  
+
+Most of the previous research has focused in finding an optimal solution to the problem of scientific workflows with constrained space, assuming that we know the entire history of the workflows that will be submitted to the system from the beginning.  In Pingo, the \textbf{Decision System} does not know the end from the beginning.  Instead, it only uses the previous workflows submitted to the system to predict how the future workflows might look like.  This different approach makes sense in fast-paced research settings where researchers don't know from the start the exact process (and hence the workflow) that they will follow in their research.
+
+For evaluation purposes we do know the end from the beginning and all the research from Section \ref{sec:lit_review_algorithms} becomes more directly relevant to our problem.  As a future endeavor, we will do a more throughout exploratory work on that research in order to apply the most relevant produced results to the evaluation of our system.  With that in mind, we can now proceed to the definition of our evaluation metrics.
+
+Consider a sequence $H=(W_1, ..., W_n)$ of n workflows that have been submitted to the system over time, and let $S$ be the storage capacity of the file system.  In sequence $H$ time will be a discrete magnitude with $n$ time steps, and we say that $t = i$ corresponds to the time when workflow $W_i$ is submitted to the system. The effective life of dataset $d$ in sequence $H$ is defined as a tuple of time steps $(t1, t2)$, with $t1$ being the time step corresponding to the first workflow that creates dataset $d$, and  $t2$ being the time step corresponding to the last workflow that makes mention of dataset $d$ in $H$.  See Figure \ref{fig:effective_life} for an example of the effective life diagram of an hypothetical history of workflows.  Time steps are represented by vertical blue lines, and datasets are represented by horizontal black lines.  Dotted ranges in the black lines (as in dataset $d3$ and $d15$ in the figure) mean that the datasets were not part of the workflows submitted at the corresponding time steps.
+
+An ideal system would only keep datasets in storage exactly for the duration of their effective life.  Let $D_H$ be the set of all datasets of a history $H$.  In our analysis, let $s: D_H \to \mathtt(N)$ be a function where $s(d_i)$ represents the storage that dataset $d_i$ occupies on the filesystem.  Let also $c: D_H \to \mathtt(N)$ be a function where $c(d_i)$ represents the average time that it takes to compute dataset $d_i$ by its corresponding action. At any given time $t$ there will be a set $M_t$ of datasets in storage, occupying an space $S' = \sum_{d \in M_t}{s(d)}$.  $S'$ must be less than $S$, otherwise, we need to remove some of the datasets present at that time to satisfy space constraint $S$.
+
+Let $b(d)$ and $e(d)$ be the start time and end time, respectively of the effective life time of dataset $d$.  Since every dataset needs to exist for at least one time step (the time step corresponding to the workflow that created the dataset), we can only consider removing datasets from $N_t \subseteq M_t$, where $d \in N_t$ if $b(d) < t$.  If the storage occupied by datasets in $N_t$ is less than $S' - S$, this will lead to a system failure that can only be effectively prevented by increasing $S$ or making the submitted workflow smaller.  We therefore ignore that circumstance in the analysis.  
+
+
+\begin{figure}
+\centering
+\includegraphics[scale = 0.5]{effective_life_diagram}
+\caption{Effective life diagram of datasets of hypothetical history of workflows.}
+\label{fig:effective_life}
+\end{figure}
+
+Determining which datasets to keep and which ones to delete so that we optimize the total execution time of the history of workflows is an NP-Hard problem.  For an example reference, see the analysis of the problem of optimizing workflow computations with constrained storage for the case of two workflows as presented by Zohrevandi and Bazzi (cite here).  Because of that, we will relax the constraints a little bit and ignore dependencies among datasets, so that what we call an /textbf{ideal solution} will not be an \textbf{optimal solution}.  Algorithm \ref{alg:ideal_computation_time} describes how to compute the ideal computational time of a sequence of workflows.  Note that it uses Algorithm \ref{alg:computation_time_left} as a subroutine.
+
+
+\begin{algorithm}
+\begin{singlespace}
+\caption{Ideal Computation Time algorithm}
+\label{alg:ideal_computation_time}
+\begin{algorithmic}[1]
+\Procedure{IdealComputationTime}{$S, H=(W_1, ..., W_n), b, e, c$}
+	\State $totalTime \gets 0$
+	\For{t from 1 to n}
+		\State Let $M_t = \{ d\, |\, b(d) \leq t \wedge e(d) \geq t \}$
+		\State Let $N_t = \{ d\, |\, b(d) < t \wedge e(d) \geq t \}$ \Comment{$N_t \subseteq M_t$}
+		\State Let $P_t = \{ d\, |\, d \in W_t \}$ \Comment{$d \in M_t \centernot\implies d \in W_t$}
+	\EndFor
+	\State Let $M_H = (M_1, ..., M_n)$
+	\State Let $N_H = (N_1, ..., N_n)$
+	\State Let $P_H = (P_1, ,,,, P_n)$
+	\For{t from 1 to n}
+		\State Find subset $A$ of $N_t$ such that $\sum_{d \in A}{s(d)} \leq S$ and $\sum_{d \in A}{computationTimeLeft(d, P_H, t, n)}$ is maximum among all possible subsets of $N_t$.  (This is the classic Knapsack problem which has pseudopolynomial solutions and good approximations).
+		\State Let $et$ be the time that workflow $W_t$ will take to compute its actions, assuming that $A$ is the set of datasets currently present in storage.
+		\State $totalTime \gets totalTime + et$
+	\EndFor
+	\State \textbf{return} $totalTime$
+\EndProcedure
+\end{algorithmic}
+\end{singlespace}
+\end{algorithm}
+
+\begin{algorithm}
+\begin{singlespace}
+\caption{Computation Time Left Subroutine}
+\label{alg:computation_time_left}
+\begin{algorithmic}[1]
+\Procedure{ComputationTimeLeft}{$d, P_H, m, n, c$}
+	\State $timeLeft \gets 0$
+	\For{t from m to n}
+		\If{$d \in P_t$}
+			\State $timeLeft \gets timeLeft + c(d)$
+		\EndIf
+	\EndFor
+	\State \textbf{return} $timeLeft$
+\EndProcedure
+\end{algorithmic}
+\end{singlespace}
+\end{algorithm}
+
+There are to ways in which Algorithm \ref{alg:ideal_computation_time} does not find a global optimal value:
+\begin{enumerate}
+\item It does not take into account dependencies among datasets (as defined by the DAGs that represent the workflows).
+\item At each time step $t$, it greedily finds a \textbf{local} minimum time that is added to the total result.
+\end{enumerate}
+
+But most good heuristic algorithms that can be proposed to find an ideal computation time of a sequence of workflows will be valid for our purposes, for as long as they provide results that are always lower than the real computation times taken by Pingo in computing those sequences of workflows.  As further research improves the \textbf{Decision System} of Pingo so that its prediction capabilities begin to improve, further research will be needed in order to close the gap between the concepts of the \textbf{ideal} and the \textbf{optimal} computation time.
+\section{Evaluation Experiments}

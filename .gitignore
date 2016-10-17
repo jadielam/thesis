@@ -11,6 +11,11 @@
 *.cb
 *.cb2
 
+## Pictures
+*.jpg
+*.jpeg
+*.png
+
 ## Intermediate documents:
 *.dvi
 *-converted-to.*
