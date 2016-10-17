@@ -1,0 +1,37 @@
+\chapter{Evaluation methodology of the decision algorithms and results}
+\label{chapter:evaluation}
+In this chapter we propose an evaluation methodology for the decision algorithms for the system.  We also report on the evaluation of the two different kinds of algorithms that we have implemented.
+
+Since it will be difficult to obtain enough real world workflows data to do an statistically valid evaluation of the system, we will use a probabilistic generator of workflows with the flexibility to adjust parameters to create different types of workloads.  This will give us the opportunity to do a more fine-grained evaluation and compare how the algorithms behave under different types of workloads.
+
+\section{Evaluation Methodology}
+To evaluate the the Decision System, our strategy will be to:
+\begin{enumerate}
+\item Probabilistically generate a history $H$ of workflows.
+\item Compute the \textbf{ideal execution time} of history $H$
+\item Submit the history $H$ to Pingo for computation and record the \textbf{actual execution time}
+\item Compare the ideal execution time with the real execution time.  The higher the ratio of $actual/ideal$, the best the algorithm.
+\end{enumerate}
+\section{Workflows generator}
+Since there is not enough real data as to evaluate the behavior of our system, we have designed a workflows generator that probabilistically creates sequences of workflows given certain parameters.
+
+The sequence generator is composed of three probabilistic generators that work together to produce the history of of workflows.  See Appendix \ref{app:workflows_generator_user_guide} for information on how to use the generator.  We have also created a Java $COMMAND\_LINE$ action that takes as parameters the size of an output in megabytes, the time of execution in seconds, and a String to act as a differentiator.  Both the action's output and the computation time of the action are determined by the parameters passed to it.
+
+\subsection{The Action Generator}
+The first of the generators is the \textbf{Action Generator}.  It takes as input the number of actions to generate and the mean and variance parameters of two normal distributions, one for the size of outputs and another one for the computational time of the action.  It generates a list of actions, each one with a unique id and its corresponding randomly generated parameters. This list of actions will be used as a pool of actions from which the workflow generator will select actions to compose the workflows.
+
+\subsection{The Workflow Generator}
+The \textbf{Workflow Generator} is a little more complex piece of computation.  Its purpose is to generate a workflow (DAG) using as nodes from the actions created by the Action Generator.  You can find a Python implementation of the algorithm in Appendix \ref{app:workflow_generator_implementation}.  Roughly, the algorithm does the following:
+\begin{enumerate}
+\item Selects $n$ nodes from the composition of all previous workflows up to that point in the sequence of workflows. It takes good care that if any pair of nodes nodes $a$, $b$ among the $n$ nodes are related between each other (antecesor/succesor) relationship, then the nodes in between them are also included among the $n$ nodes.
+
+\item It randomly selects $workflow\_size - n$ new actions from the pool of actions that are not nodes in the DAGs of the workflows already generated..
+
+\item Create two normal distributions with parameters provided in configuration.  Call one distribution the $childrenDist$ and the other one $parentDist$. For each action $a$ selected to be part of the new workflow: If action $a$ was selected from previous workflows, use $childrenDist$ to generate the number of children that this action will take.  Otherwise if action $a$ is a new action, use, $childrenDist$ and $parentDist$ to generate the number of children and the number of parents that this node will have, respectively.
+
+\item Use a greedy algorithm to create a directed acyclic graph that satisfies the constraints of number of children and number of parents a node will have in the best possible way and return the corresponding workflow.
+\end{enumerate}
+
+The parameters used to define the structure of the DAGs are good enough to produce most of the varieties of histories of workflows that we could imagine. For example, 
+\section{Ideal Execution Time calculation}
+The first step is to define what an ideal execution time of a history of workflows is, and also how to compute that execution time given a history of workflows.
