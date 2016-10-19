@@ -237,7 +237,65 @@ The first thing that happens is that the Decision Manager queries the file syste
 \end{enumerate}
 
 \section{The Decision Algorithms}
-\subsection{Most-Commonly-Used Algorithm}
+All the decision algorithms implement the same interface.  They take two parameters as input: a datastructure that we have called $Simplified Workflow History$ ($SWH$), and the space to free ($spaceToFree$).  The Simplified Workflow History provides a very generic API that makes it easy to gather statistics on the history of workflows.
+So far we have implemented two decision algorithms in Pingo: a most-commonly-used decision algorithm, and an adaptive algorithm.
+
+\subsection{Most Valuable Algorithm Family}
+This is a very simple algorithm that represents a big family of possible algorithms that can be implemented.  The idea is to retain in storage the datasets with the most value.  Implementations of this base algorithm need to define what value is.  For example, in Algorithm \ref{alg:most_commonly_used_decision} we have defined value as simply the number of times the dataset is used throughout the history of workflows. This is a very simple definition of value, but provides the most straightforward implementation.  Algorithm \ref{alg:most_commonly_used_decision} is valuable as a baseline to compare against.
+
+\begin{algorithm}
+\begin{singlespace}
+\caption{Most-Commonly-Used Algorithm}
+\label{alg:most_commonly_used_decision}
+\begin{algorithmic}[1]
+\Procedure{MostCommonlyUsed}{$SWH, spaceToFree$}
+	\State $datasetCounts \gets SWH.datasetCounts()$
+	\State $sortedDatasetCounts \gets sortByCount(datasetCounts)$
+	\State $spaceFred \gets 0$
+	\State $toDelete \gets List()$
+	\For{$count$, $dataset$ in $datasetCounts$}
+		\If{$spaceFred \geq spaceToFree$}
+			\State \textbf{break}
+		\EndIf	
+		\State $toDelete.append(dataset)$
+		\State $spaceFred \gets spaceFred + dataset.space$
+	\EndFor
+	
+	\State \textbf{return} $toDelete$
+\EndProcedure
+\end{algorithmic}
+\end{singlespace}
+\end{algorithm}
+
+\subsection{Simple Adaptive Algorithm Family}
+Algorithms that belong to the $Most Valuable Algorithm$ family are a good starting point, but they have a weakness: they treat the entire history of workflows in the same way.  This is troublesome, specially if it is the case that most recent datasets are more likely to be used than less recent ones.  The main question that we need to be asking is: How far back into the history of workflows do we need to look to determine the value of datasets? This is a difficult question to answer, and finding good answers for it is an area of further research.  We propose a simple adaptive algorithm, described in Algorithm \ref{alg:adaptive_most_commonly_used_decision} that looks to the entire history of workflows to determine some statistics on how far back do workflows usually look back when reusing datasets. Then we call the corresponding procedure from the \textbf{Most Valuable Algorithm Family} in order to determine the datasets to delete in this smaller workflow history.
+
+\begin{algorithm}
+\begin{singlespace}
+\caption{Adaptive Most-Commonly-Used Algorithm}
+\label{alg:adaptive_most_commonly_used_decision}
+\begin{algorithmic}[1]
+\Procedure{AdaptiveMostCommonlyUsed}{$SWH, spaceToFree$}
+	\State $recencyList \gets List()$
+	\State $n \gets length(SWH)$
+	\For{$i$ in from 1 to $n$}
+		\For{dataset $d$ in $W_i$}
+			\State $W_j \gets$ previous workflow where d was used.
+			\If{$W_j$ \textbf{is not} $Null$}
+				\State $recencyList.append(i - j)$
+			\EndIf
+		\EndFor
+			
+	\EndFor
+	\State $\mu \gets mean(recencyList)$
+	\State $\sigma \gets std(recencyList)$
+	\State $smallerHistory \gets SWH.subList(n - \mu - 2\sigma, n + 1)$
+	\State \textbf{return} $MostCommonlyUsed(smallerHistory, spaceToFree)$
+
+\EndProcedure
+\end{algorithmic}
+\end{singlespace}
+\end{algorithm}
 
 
 
