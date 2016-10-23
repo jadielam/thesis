@@ -6,7 +6,6 @@
 \begin{mdframed}
 \begin{verbatim}
 {
-
 	"nb_actions": 300,
 	"action_size": {
 		"mean": 10,
@@ -45,5 +44,53 @@
 
 \caption{Parameters of Workflows' Generator}
 \label{fig:parameters_generator_experiment_1}
+\end{singlespace}
+\end{figure} 
+
+\section{Experiment 2}
+\label{app:experiment_2_parameters}
+\begin{figure}
+\begin{singlespace}
+\begin{mdframed}
+\begin{verbatim}
+{
+	"nb_actions": 300,
+	"action_size": {
+		"mean": 10,
+		"std": 3
+		},
+	"action_time": {
+		"mean": 10, 
+		"std": 3
+	},
+	"workflow_size": {
+		"mean": 10,
+		"std": 4
+	},
+	"previous_actions": {
+		"mean": [0.5, 0.15, 0.25, 0.35, 0.45, 0.55],
+		"std": 0.1
+	},
+	"nb_children": {
+		"mean": 2.1,
+		"std": 4.5
+	},
+	"nb_parent": {
+		"mean": 2.1,
+		"std": 4.5
+	},
+	"workflow": {
+		"name": "workflow",
+		"version": "1.0",
+		"main_class_name": "io.biblia.workflows.job.Main",
+		"action_folder": "/user/hadoop/examples/apps/scientific-workflows",
+		"nameNode": "hdfs://ec2-54-80-213-20.compute-1.amazonaws.com:8020"
+	}
+}
+\end{verbatim}
+\end{mdframed}
+
+\caption{Parameters of Workflows' Generator}
+\label{fig:parameters_generator_experiment_2}
 \end{singlespace}
 \end{figure} 

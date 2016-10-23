@@ -138,19 +138,42 @@ In the first experiment we explore the effect that changing the storage constrai
 
 For Hadoop we use the Elastic Map Reduce service provided by Amazon Cloud Computing, with the default settings, with the only difference that we also include Apache Oozie among the packages to install (it is not included by default).  Because of our limitations in time to run the experiments, and in storage (more storage will cost us more money), the computations of the actions that we run will take only a few seconds, and their output will also be relatively small.  Our main interest running the experiments is to compare how different algorithms will compare against each other under different types of loads.  We ran a couple of experiments with more real-life computation time and output sizes, and we confirmed that the results stay consistent.
 
+
 \subsection{How computation time is affected by the amount of storage in the system}
 In this experiment we report how the computation time is affected by the amount of space that we have for storage in our system.  You can find the complete report of the parameters used to configure Pingo and the workflows' generator in Appendix \ref{app:experiment_1_parameters}.  The number of actions for the experiment is 300, with an average of 10 actions per workflow, and each workflow repeating \textbf{half} the actions from previous workflows.  This means that on average, a workflow produced by the generator uses 5 new actions from the 300 possible actions it can choose, making the length of the generated sequences of workflows to be around 60.
 
-Since each action will take an average of 10 seconds to finish, and its output will have an average size of 10MB, the total average time of our workflows should be 3000 seconds, and the average storage needed to save all of the actions is 3000MB.  In our experiment, we will modify the available space of the system at increments of 500MB, starting at 500MB.
+Since each action will take an average of 10 seconds to finish, and its output will have an average size of 10MB, the total average time of our workflows should be 3000 seconds, and the average storage needed to save all of the actions is 3000MB.  In our experiment, we will modify the available space of the system at increments of 500MB, starting at 500MB. 
 
-There are many interesting comments that we can make of the results in Figure \ref{asdf}.  First of all, as we expected, the computation time of the history of workflows decreased as we increased the available storage in the system.  The effect can be more easily seen in the simple algorithm.  Another noticeable result is that as the storage capacity of the system increases, the simple algorithm approaches the performance of the adaptive algorithm.
+The results of the experiment can be seen in Figure \ref{fig:experiment1}.  In the figure, \textbf{Computation time percentage} is reports the computation time of the runs as a percentage of the computation time of the runs if all computations are performed. There are many interesting comments that we can make of those results. First of all, as we expected, the computation time of the history of workflows decreased as we increased the available storage in the system.  The effect can be more easily seen in the simple algorithm.  Another noticeable result is that as the storage capacity of the system increases, the simple algorithm approaches the performance of the adaptive algorithm.
 
-An important result that can be derived from Figure \ref{asdf} is that the adaptive algorithm is fairly robust. Its performance is not affected as much by the available storage in the system as it is the case with the simple algorithm. It is remarkable to see how it achieves excellent performance even with storage capacity at 500MB.  To place the result in perspective, in the runs with storage capacity at 500MB, the adaptive algorithm performed 6 percent worse than in the runs with storage capacity at 2000MB, where it achieved its best results.
+An important result that can be derived from Figure \ref{fig:experiment1} is that the adaptive algorithm is fairly robust. Its performance is not affected as much by the available storage in the system as it is the case with the simple algorithm. It is remarkable to see how it achieves excellent performance even with storage capacity at 500MB.  To place the result in perspective, in the runs with storage capacity at 500MB, the adaptive algorithm performed 6 percent worse than in the runs with storage capacity at 2000MB, where it achieved its best results.
+
+
+\begin{figure}
+\centering
+\includegraphics[scale = 1.1]{experiment1}
+\caption{Computation time as storage increases}
+\label{fig:experiment1}
+\end{figure}
+
 
 \subsection{How computation time is affected by the types of workflows in the history of workflows}
-There are plenty of parameters in the workflow generator that we could play with in order to produce different kinds of workflows.  In our discussion we will only modify the parameter that determines the percentage of actions from previous workflows submitted to the system that are used by new workflows submitted to the system.  We will vary that parameter by 10 percent increments, starting at 5 percent, and ending at 55 percent.  We also fix the amount of available space of the system at 500MB.  We should expect an improvement in the gains in the decrease in computation time as the percentage of previous actions increases.
+There are plenty of parameters in the workflow generator that we could play with in order to produce different kinds of workflows.  In our discussion we will only modify the parameter that determines the percentage of actions from previous workflows submitted to the system that are used by new workflows submitted to the system.  We will vary that parameter by 10 percent increments, starting at 5 percent, and ending at 55 percent.  We also fix the amount of available space of the system at 500MB.  You can find the complete report of the parameters used to configure Pingo and the workflows' generator in Appendix \ref{app:experiment_2_parameters}. We should expect an improvement in the gains in the decrease in computation time as the percentage of previous actions increases.
 
+There are no surprises in the results of Figure \ref{fig:experiment2}.  Both, the simple and adaptive algorithms decrease their computation time as we increase the percentage of previous actions that a workflow includes.  This result was expected since, the more previously computed actions a workflow includes, the more opportunities the Pingo system will have to skip those computations since is likely that the outputs of those computations are available in storage.
 
+\begin{figure}
+\centering
+\includegraphics[scale = 1.1]{experiment2}
+\caption{Computation time percentage as percentage of actions from previous workflows increases}
+\label{fig:experiment2}
+\end{figure}
+
+\section{Conclusions of our evaluations}
+From the evaluations of the algorithms we can conclude that adaptive family of algorithms will perform better in most scenarios than the simple algorithms by themselves.  in both algorithms, the definition that we used to assign value to each action was very simple, and it did not take into account the computation time of an action, only its frequency of usage.  Because of that, there is still room for improvements on the already promising results. 
+
+For future evaluations, we propose the creation of more complex adaptive algorithms.  The current algorithm works well when the \textbf{look back} parameter does not probabilistically change much.  In real life scenarios, more complex adaptive algorithms should be able to detect the rate at which the look back parameter might be changing, and adapt to it.
+The experiments we designed were able to give us some good insights into how the different algorithms we tested performed under different conditions. Because of that, we think that those evaluation experiments should serve as the foundation of any future evaluation methodology on the system. 
 
 
 
