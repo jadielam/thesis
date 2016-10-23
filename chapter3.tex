@@ -68,13 +68,160 @@ Actions must have \textit{id}, \textit{name} and \textit{type} attributes. They 
 
 If the attribute \textit{isManaged} is set to \textit{True}, it means that the path where the output of this action will be stored is determined and managed by the system. If \textit{isManaged} is set to \textit{False}, it means that the path where the output of this action will be stored is not determined or managed by the system, and that path must be provided by the user. The user needs to have Read/Write permissions to any path it provides, otherwise, the execution of the action will fail at the end. The default value for \textit{isManaged} is \textit{True}.
 
-Notice also how action names do not need to be unique. An action name is just a mnemonic resource to understand what the action does. Also depending on the action type, there might be other required attributes too. We currently support three kinds of actions: \textbf{Command-line actions}, \textbf{MapReduce v1.0 actions} and \textbf{MapReduce v2.0 actions}, and in the future we are planning to add support for \textbf{Spark actions} and \textbf{Sqoop actions}
-
-TODO: Explain how an action's dataset name is determined
+Notice also how action names do not need to be unique. An action name is just a mnemonic resource to understand what the action does. Also depending on the action type, there might be other required attributes too. We have implemented functionality two types of actions: \textbf{Command-line action} and \textbf{MapReduce v1.0 action}, but currently we only fully support the \textbf{Command-line action}. In the future we are planning to add support for \textbf{Spark actions} and \textbf{Sqoop actions}
 
 \subsubsection{Command Line Action}
-\subsubsection{MapReduce v1.0 Action}
-\subsubsection{MapReduce v2.0 Action}
+A Command Line action is a Java program that is submitted to be executed by the cluster.  Before submitting the action, there must be an action folder existing in the cluster's file system that contains the Java jar file with the action, as well as any jars with the libraries needed by the Java program.  In the submission json, as you can see in Figure \ref{fig:command_line_action_definition}, we also pass the system the main class of the action, as well as any command line parameters that the main class needs to execute.  The readings of parameters from the main class of the action needs to be designed in such a way that it will read first in order the configuration parameters given in the field $additionalInput$, and then the rest of the parameters will be the paths to the output of its parent actions, also received ordered by the id of the parent action.  
+\begin{figure}
+\begin{mdframed}
+\begin{singlespace}
+\begin{verbatim}
+
+
+{
+    "actionFolder": "/user/hadoop/examples/apps/workflows", 
+    "actionId": 1, 
+    "additionalInput": [
+    {
+     "key": "sizeInMB",
+     "value": "306.709032093"
+    }, 
+    {
+     "key": "timeInSeconds", 
+     "value": "199.156048492"
+    }, 
+    {
+      "key": "nameNode", 
+      "value": "hdfs://ec2-23-32.compute-1.amazonaws.com:8020"
+    }, 
+    {
+      "key": "uniqueRandomInput", 
+      "value": "SNI31N35RS"
+     }
+     ], 
+     "forceComputation": false, 
+     "mainClassName": "io.biblia.workflows.job.Main", 
+     "name": "action1", 
+     "parentActions": [
+          0, 
+          2, 
+          3
+     ], 
+   "type": "COMMAND_LINE"
+I}
+\end{verbatim}
+\end{singlespace}
+\end{mdframed}
+\caption{Command Line Action definition}
+\label{fig:command_line_action_definition}
+\end{figure}
+
+\subsection{Determining Action's output path}
+There must a one-to-one relationship between an action and its output, therefore we can identify an action by its output path and vice versa. As described in Section \ref{sec:encryption}, we are proposing the use of an encryption alternative to produce a unique string that is derived from an action's description and lineage (the encrypted strings of its parents). Algorithm \ref{alg:action_encryption} describes the procedure to produce a unique string.  It takes as input parameters $p$ and $a$, where $ps$ is a list with the generated unique string of parents, and $a$ is the action description.  Depending on the action type of action $a$, Algorithm \ref{alg:action_encryption} uses a different subroutine to analyze the action's description. In this case, we provide a subroutine for the Command Line action type in Algorithm \ref{alg:command_line_action_encryption}.
+
+\begin{algorithm}
+\begin{singlespace}
+\caption{Action Encryption from Description and Lineage}
+\label{alg:action_encryption}
+\begin{algorithmic}[1]
+\Procedure{ActionEncryption}{$ps, a$}
+\State $concatenationString \gets ""$
+\For{parentString in ps}
+	\State $concatenationString.append(parentString)$
+	\State $concatenationString.appendSeparator()$
+\EndFor
+\If{$a.type$ is $COMMAND\_LINE$}
+	\State $concatenationString.append(CommandLineActionEncryption(a))$
+\Else
+	\State \textbf{throw} $NotSupportedOperation$ exception
+\EndIf
+\State \textbf{return} $encrypt(concatenationString)$
+
+\EndProcedure
+\end{algorithmic}
+\end{singlespace}
+\end{algorithm}
+
+\begin{algorithm}
+\begin{singlespace}
+\caption{Command Line Action Encryption}
+\label{alg:command_line_action_encryption}
+\begin{algorithmic}[1]
+\Procedure{CommandLineActionEncryption}{$a$}
+\State $concatenationString \gets " "$
+\State $concatenationString.append(a.name)$
+\State $concatenationString.appendSeparator()$
+
+\For{key, value in additionalInputs}
+	\State $concatenationString.append(key)$
+	\State $concatenationString.appendSeparator()$
+	\State $concatenationString.append(value)$
+	\State $concatenationString.appendSeparator()$
+\EndFor
+	\State \textbf{return} $concatenationString$
+\EndProcedure
+\end{algorithmic}
+\end{singlespace}
+\end{algorithm}
+
+\subsubsection{Considerations to keep in mind when designing subroutines for new types of actions}
+When designing an encryption subroutine for an action type, we need to keep in mind that this subroutine needs to behave like a hash function of that action's description.  Only the description fields that make that action unique need to be used. An important consideration needs to be given to list fields, such as $additionalInput$.  For example, consider the example in Figure \ref{fig:action_parameters_ordering}.  In the case of a COMMAND\_LINE action order of parameters matter, and the two examples represent a different action.  In the case of a MAP\_REDUCE action, order does not matter, and both examples are equivalent.  When order does not matter, the list of parameters need to be ordered alphabetically by key and then value, so that the concatenation string to be encrypted is the same no matter the ordering of the parameters.
+
+\begin{figure}[htbp]
+\centering
+\begin{singlespace}
+\begin{minipage}[b]{7 cm}
+\begin{mdframed}
+\begin{verbatim}
+{
+    .
+    .
+    .
+    "additionalInput": [
+    {
+     "key": "sizeInMB",
+     "value": "306.709032093"
+    }, 
+    {
+     "key": "timeInSeconds", 
+     "value": "199.156048492"
+    }]
+    .
+    .
+    .
+}
+\end{verbatim}
+\end{mdframed}
+\end{minipage}
+\begin{minipage}[b]{7 cm}
+\begin{mdframed}
+\begin{verbatim}
+{
+    .
+    .
+    .
+    "additionalInput": [
+    {
+     "key": "timeInSeconds", 
+     "value": "199.156048492"
+    },
+    {
+     "key": "sizeInMB",
+     "value": "306.709032093"
+    }]
+    .
+    .
+    .
+}
+\end{verbatim}
+\end{mdframed}
+\end{minipage}
+\end{singlespace}
+\caption{Example with two different orderings of input parameters}
+\label{fig:action_parameters_ordering}
+\end{figure}
+
+
 
 \section{The Action Manager}
 The Action Manager's purpose is to submit individual actions to the Hadoop cluster for computation. In our current implementation it uses \textbf{Apache Oozie} as an intermediary, but there is nothing in the system that restricts us from doing away with \textbf{Apache Oozie} in the future.

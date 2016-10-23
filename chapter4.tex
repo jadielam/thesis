@@ -130,3 +130,30 @@ There are to ways in which Algorithm \ref{alg:ideal_computation_time} does not f
 
 But most good heuristic algorithms that can be proposed to find an ideal computation time of a sequence of workflows will be valid for our purposes, for as long as they provide results that are always lower than the real computation times taken by Pingo in computing those sequences of workflows.  As further research improves the \textbf{Decision System} of Pingo so that its prediction capabilities begin to improve, further research will be needed in order to close the gap between the concepts of the \textbf{ideal} and the \textbf{optimal} computation time.
 \section{Evaluation Experiments}
+In our evaluation experiments, we mainly focus on evaluating the algorithms simple and adaptive algorithm families under different parameters.  All the experiments will run as follows: We generate a history of workflows using the generator that we have designed.  We then submit to the system that history of workflows, one workflow at a time, and see how much computation time does the system take using different algorithms. When submitting the workflows to the system, we will always wait for the previous submitted workflow to compute in order to submit the next workflow. The purpose of that practice is to measure the gains in decrease of computation time that the algorithms provide under the most ideal circumstance. We also estimate the computation time it would have taken the system if we had used no algorithm.
+
+For each of the experiments we provide the configuration parameters that we used to generate the workflows.  Since the workflow generator is probabilistic, for each experiment we execute 5 different runs and report averaged results.
+
+In the first experiment we explore the effect that changing the storage constraint has in the total computation time of a history of workflows.  We should expect that as we increase the storage in the system, the computation time will be reduced.  In the second experiment we will keep the storage constrain fixed, and will explore how the different algorithms behave under different kinds of workflows, focusing on changing the percentage of actions from previous workflows that are included in new workflows.
+
+For Hadoop we use the Elastic Map Reduce service provided by Amazon Cloud Computing, with the default settings, with the only difference that we also include Apache Oozie among the packages to install (it is not included by default).  Because of our limitations in time to run the experiments, and in storage (more storage will cost us more money), the computations of the actions that we run will take only a few seconds, and their output will also be relatively small.  Our main interest running the experiments is to compare how different algorithms will compare against each other under different types of loads.  We ran a couple of experiments with more real-life computation time and output sizes, and we confirmed that the results stay consistent.
+
+\subsection{How computation time is affected by the amount of storage in the system}
+In this experiment we report how the computation time is affected by the amount of space that we have for storage in our system.  You can find the complete report of the parameters used to configure Pingo and the workflows' generator in Appendix \ref{app:experiment_1_parameters}.  The number of actions for the experiment is 300, with an average of 10 actions per workflow, and each workflow repeating \textbf{half} the actions from previous workflows.  This means that on average, a workflow produced by the generator uses 5 new actions from the 300 possible actions it can choose, making the length of the generated sequences of workflows to be around 60.
+
+Since each action will take an average of 10 seconds to finish, and its output will have an average size of 10MB, the total average time of our workflows should be 3000 seconds, and the average storage needed to save all of the actions is 3000MB.  In our experiment, we will modify the available space of the system at increments of 500MB, starting at 500MB.
+
+There are many interesting comments that we can make of the results in Figure \ref{asdf}.  First of all, as we expected, the computation time of the history of workflows decreased as we increased the available storage in the system.  The effect can be more easily seen in the simple algorithm.  Another noticeable result is that as the storage capacity of the system increases, the simple algorithm approaches the performance of the adaptive algorithm.
+
+An important result that can be derived from Figure \ref{asdf} is that the adaptive algorithm is fairly robust. Its performance is not affected as much by the available storage in the system as it is the case with the simple algorithm. It is remarkable to see how it achieves excellent performance even with storage capacity at 500MB.  To place the result in perspective, in the runs with storage capacity at 500MB, the adaptive algorithm performed 6 percent worse than in the runs with storage capacity at 2000MB, where it achieved its best results.
+
+\subsection{How computation time is affected by the types of workflows in the history of workflows}
+There are plenty of parameters in the workflow generator that we could play with in order to produce different kinds of workflows.  In our discussion we will only modify the parameter that determines the percentage of actions from previous workflows submitted to the system that are used by new workflows submitted to the system.  We will vary that parameter by 10 percent increments, starting at 5 percent, and ending at 55 percent.  We also fix the amount of available space of the system at 500MB.  We should expect an improvement in the gains in the decrease in computation time as the percentage of previous actions increases.
+
+
+
+
+
+
+
+
