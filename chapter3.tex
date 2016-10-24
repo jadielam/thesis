@@ -1,11 +1,17 @@
 \chapter{IMPLEMENTATION OF THE SYSTEM}
 \label{chap:implementation}
 \section{Birdeye overview}
-Introduce the system and what it does. To the point that it takes you to the Hadoop ecosystem and
-how it uses it
-\subsection{The Hadoop ecosystem}
-\subsection{Configuration parameters}
-Talk about the configuration parameters used for the system such as namenode, oozieurl, etc.
+The Pingo system is a group of independent processes that together take care of the management of computations and their outputs.  We first give a bird-eye overview of it.  In the remaining of the chapter we explain each of the components with more detail. 
+
+In general the process works as follows: An end-user uses Json to define a workflow of computations and submits the workflow of computations to an endpoint of the system. Also, before submitting the actions to the system, the user needs to have placed the jar files that carry those computations in a folder in the distributed file system that is accessible to the Pingo system. There is a submission manager that takes care of parsing the workflow and analyzing the directed acyclic graph of computations defined in it in order to determine which actions need to be computed.  Those actions are then submitted to the database with either one of two states: $WAITING$ or $READY$.
+
+There exists a process called the Action Submitter that is constantly querying the database, pulling actions that are ready to be submitted for computation. This system converts the Json definition of the action into an xml definition that in understood by Hadoop, and then submits the computation for Hadoop to carry out.  There can be multiple Action Submitter processes working at the same time.  To synchronize efforts, each process will use the database and its locking mechanisms guarantying that no action will be submitted twice for computation to Hadoop.
+
+Another independent piece of the system is the Callback Manager.  When an action is submitted for computation to Hadoop, a callback endpoint is provided so that Hadoop can notify back the system with information about the computation: if it finished, failed or was killed, etc.  At the same time, the Callback Manager is constantly polling Hadoop for information regarding each of the actions submitted for computation.  Once an action finishes computing, the callback manager takes care of updating the state of the action and of the dataset produced by the action in the database, as well as of updating the state of any action that depends on the output of the computation that just finished.
+
+The Decision Manager is another independent process that frequently queries the database and the file system to determine which of the datasets produced by actions should be kept in the system, and which ones should be deleted. The Decision Manager is the predictive brain of the system, and its decision will affect the for good or bad the computation time of future workflow submissions to the system.
+
+The last independent process of the system is the Dataset Manager.  The dataset manager takes care of enforcing the decisions of the Decision Manager.  It queries the database for actions whose state has been changed to $TO_DELETE$. If the dataset is not currently locked by some action, it deletes it from the file system.
 
 \section{The Workflow Definition Language}
 We have chosen the JSON format for the definition of workflows because its expressiveness is sufficient for what we need, and it is also very human readable. As shown in Figure \ref{fig:workflow_definition_language}, a workflow is made of a \textbf{name}, an \textbf{start action id}, an \textbf{end action id} and a \textbf{list of actions}. 

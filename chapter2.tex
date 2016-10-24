@@ -11,7 +11,7 @@ How can we achieve such functionality? How can we know that actions A and B are 
 
 The way we define what an \textbf{action} is will dictate the possibility of designing practical functionality that will allow us to optimize the time spent computing a workflow. 
 
-Simplifying things, we can think of an action as a pure function $f:A \rightarrow B$.  Suppose that we are asked to compute $f(a)$.  If we have previously computed $b=g(c)$, and we can determine that $g=f$ and that $c=a$, then we can skip the computation of $f(a)$ (if it is that we still have $b$ among us.  Determining if $a$ and $c$ are equal to each other is trivial, but it can be time consuming if the inputs are big.  Determining if $f$ and $g$ are equivalent is more difficult and has deep theoretical ramifications (it is computationally imposible in the most broad sense, since the Halting Problem can be reduced to this problem).
+Simplifying things, we can think of an action as a pure function $f:A \rightarrow B$.  Suppose that we are asked to compute $f(a)$.  If we have previously computed $b=g(c)$, and we can determine that $g=f$ and that $c=a$, then we can skip the computation of $f(a)$ (if it is that we still have $b$ among us.  Determining if $a$ and $c$ are equal to each other is trivial, but it can be time consuming if the inputs are big.  Determining if $f$ and $g$ are equivalent is more difficult and has deep theoretical ramifications (it is computationally impossible in the most broad sense, since the Halting Problem can be reduced to this problem).
 
 Also, comparing our actions to pure mathematical functions is not completely accurate.  \cite{wiki:pure_function} says that a pure function is a function that "always evaluates the same result value given the same argument values.  The function result cannot depend on any hidden information or state that may change while program execution proceeds." In some cases, as we will see in the next chapter, there will be nothing stopping our actions from reading values from environmental variables.
 
@@ -97,7 +97,7 @@ The algorithm goes over each dataset $d_i$ in storage, and uses a simple Breadth
 
 To analyze the running time of this algorithm, let $m$ be the number of datasets in storage, and let $M$ and $N$ be the number of nodes and of edges of the submitted workflow.  The running time of the algorithm would then be $O(m (M + N))$.  If we index the metadata of our stored datasets in a clever way, we can reduce that to a running time of $O(t (M + N))$ with $t << m$.
 
-But this approach will be problematic to implement for at least two reasons: First, $t$ will increase without bounds as the system ages. The space occupied by the index of the metadata will also increase, making it difficult to keep it all in memory for fast computations. The second reason is that indexing the metadata of a graph datastructure is not a trivial task.
+But this approach will be problematic to implement for at least two reasons: First, $t$ will increase without bounds as the system ages. The space occupied by the index of the metadata will also increase, making it difficult to keep it all in memory for fast computations. The second reason is that indexing the metadata of a graph datastructure is not a trivial task. (\cite{simmhan2005survey})
 
 \subsubsection{The encryption alternative}
 \label{sec:encryption}
@@ -139,11 +139,3 @@ The core functionality of the system is the Decision System that determines whic
 \end{enumerate}
 
 The algorithm outputs a set $B \subset D$ such that $\sum_{d \in B}{s(d)}$ is greater than or equal to $F$.  Set $B$ needs to be selected in such a way that there is no other subset $B'$ of $D$ of storage size equal or greater than $B$ such that if we remove from storage datasets of $B'$ instead of $B$, we would spend less time computing our future workflows. 
-
-\subsubsection{Literature Review of Related Problems}
-\label{sec:lit_review_algorithms}
-This section can be skipped without risking lack of understanding of the rest of the presentation, but for completeness sake we think that is necessary to review multiple efforts in the literature to solve problems similar to the one we have posed in Section \ref{sec:decision_system}. 
-
-Is not surprising that none of the related problems have been defined in the same way we have defined ours, so we want to offer some commentary on which of them we think are more relevant to problem in \ref{sec:decision_system} and why.
-
-\section{A multi-user multi-component system}
