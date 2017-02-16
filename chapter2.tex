@@ -97,17 +97,16 @@ Then $p(N)$ is the probability that at least two of the N hash values are the sa
 Placing a constraint of the amount of space available to store intermediate datasets makes the problem more interesting. There are physical limitations and technical limitations that won't allow us to have unlimited space.  Therefore, at most moments in time, the system needs to decide which datasets to keep in storage and which datasets to delete. The system also has to carry out the execution of the decisions.
 
 \subsection{The History of Workflows}
-*********BEGIN HERE*****************
-The concept of \textbf{History of Workflows} becomes useful if the constraint of bounded storage capacity is added to the system. Since the final objective is to optimize the time of computing future workflows, the decision system can be thought of as an optimization problem that tries to "guess" which datasets will be more relevant in the future. What strategy should we use in order to optimize the computational time of future workflow submissions?  That is an open question that has multiple valid answers.  But whatever strategy we use to accurately predict which datasets might be needed in the future will need access to the history of workflows submitted to the system up to that point.  Because different strategies might need different things from the history of workflows, it is recommended to provide a flexible API that can be used to query the history of workflows to obtain a diverse set of statistics over specified periods of time and at different resolutions.
+The concept of \textbf{History of Workflows} becomes useful if the constraint of bounded storage capacity is added to the system. Since the final objective is to optimize the time of computing future workflows, the decision system can be thought of as an optimization problem that tries to "guess" which datasets will be more relevant in the future. How to accurately predict which datasets are needed in the future is an open question that has multiple valid answers. Most of the potential valid strategies make use of the history of workflows submitted to the system up to that point.  Different strategies might need different things from the history of workflows. Because of that, there needs to be an API layer that provides varied ways to query the history of workflows to obtain a diverse set of statistics over specified \textbf{ranges of time} and at different \textbf{resolutions}.
 
 \subsection{The Decision System}
 \label{sec:decision_system}
-The core functionality of the system is the Decision System that determines which datasets need to remain and which datasets need to be deleted from the storage of the system.  The Decision System can be run each time a new workflow is submitted to the system, or it can be run only when space occupied by stored datasets reaches a certain threshold of the total capacity of the system. The second option makes more sense, so we will define our interface with that in mind. The Decision System defines an interface that can be implemented by different algorithms to determine which datasets currently in storage need to be deleted. The interface takes the following elements as input:
+Pingo's core functionality is the Decision System that determines which datasets need to remain and which datasets need to be deleted from storage.  The Decision System can either run each time a new workflow is submitted to the system, or it can run only when space occupied by stored datasets reaches a certain threshold of the total capacity.  The second option makes more sense, since it will be able to complain with the bounded storage constraint as well as the first option, but uses the computational resources less. The Decision System defines an interface that can be implemented by different decision algorithms to determine which datasets currently in storage need to be deleted. The interface takes the following elements as input:
 
 \begin{enumerate}
 \item The History of Workflows submitted to the system, $H = (W_1, W_2, ..., W_n)$, where each $W_i$ is a DAG. It is left to the algorithm to decide if it will use the entire history or only a subset of it.
 
-\item A set $D$ of datasets currently stored in the file system. 
+\item The set $D$ of datasets currently stored in the file system. 
 
 \item $s: D \to \mathtt{N} $, where $s(d_i)$ is the storage space in megabytes that dataset $d_i$ occupies in the file system.
 
@@ -117,4 +116,4 @@ The core functionality of the system is the Decision System that determines whic
 
 \end{enumerate}
 
-The algorithm outputs a set $B \subset D$ such that $\sum_{d \in B}{s(d)}$ is greater than or equal to $F$.  Set $B$ needs to be selected in such a way that there is no other subset $B'$ of $D$ of storage size equal or greater than $B$ such that if we remove from storage datasets of $B'$ instead of $B$, we would spend less time computing our future workflows. 
+The algorithm outputs a set $B \subset D$ such that $\sum_{d \in B}{s(d)}$ is greater than or equal to $F$.  Set $B$ needs to be selected in such a way that there is no other subset $B'$ of $D$ of storage size equal or greater than $B$ such that if datasets of $B'$ instead of $B$ are removed from storage, the system would spend less time computing future workflow submissions. 
