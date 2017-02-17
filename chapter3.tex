@@ -124,28 +124,25 @@ I}
 \end{figure}
 
 \subsection{Determining Action's output path}
-***************
-TO BEGIN HERE
-****************
-There must a one-to-one relationship between an action and its output, therefore we can identify an action by its output path and vice versa. As described in Section \ref{sec:encryption}, we are proposing the use of an encryption alternative to produce a unique string that is derived from an action's description and lineage (the encrypted strings of its parents). Algorithm \ref{alg:action_encryption} describes the procedure to produce a unique string.  It takes as input parameters $p$ and $a$, where $ps$ is a list with the generated unique string of parents, and $a$ is the action description.  Depending on the action type of action $a$, Algorithm \ref{alg:action_encryption} uses a different subroutine to analyze the action's description. In this case, we provide a subroutine for the Command Line action type in Algorithm \ref{alg:command_line_action_encryption}.
+There must a one-to-one relationship between an action and its output path, therefore the output path can also serve as the identified of an action. As described in Section \ref{sec:encryption}, it is better to search for equivalent actions using hashes of actions. A hash will derive from an action's description and lineage (the hashes of its parents). Algorithm \ref{alg:action_encryption} describes the procedure to produce a unique string.  It takes as input parameters $p$ and $a$, where $ps$ is a list with the generated unique string of parents, and $a$ is the action description.  Depending on the action type of action $a$, Algorithm \ref{alg:action_encryption} uses a different subroutine to analyze the action's description. Algorithm \ref{alg:command_line_action_encryption} shows the subroutine for the Command Line Action.
 
 \begin{algorithm}
 \begin{singlespace}
-\caption{Action Encryption from Description and Lineage}
+\caption{Action Hashing from Description and Lineage}
 \label{alg:action_encryption}
 \begin{algorithmic}[1]
-\Procedure{ActionEncryption}{$ps, a$}
+\Procedure{ActionHashing}{$ps, a$}
 \State $concatenationString \gets ""$
 \For{parentString in ps}
 	\State $concatenationString.append(parentString)$
 	\State $concatenationString.appendSeparator()$
 \EndFor
 \If{$a.type$ is $COMMAND\_LINE$}
-	\State $concatenationString.append(CommandLineActionEncryption(a))$
+	\State $concatenationString.append(CommandLineActionHashing(a))$
 \Else
 	\State \textbf{throw} $NotSupportedOperation$ exception
 \EndIf
-\State \textbf{return} $encrypt(concatenationString)$
+\State \textbf{return} $hash(concatenationString)$
 
 \EndProcedure
 \end{algorithmic}
@@ -154,7 +151,7 @@ There must a one-to-one relationship between an action and its output, therefore
 
 \begin{algorithm}
 \begin{singlespace}
-\caption{Command Line Action Encryption}
+\caption{Command Line Action Hashing}
 \label{alg:command_line_action_encryption}
 \begin{algorithmic}[1]
 \Procedure{CommandLineActionEncryption}{$a$}
@@ -174,8 +171,8 @@ There must a one-to-one relationship between an action and its output, therefore
 \end{singlespace}
 \end{algorithm}
 
-\subsubsection{Considerations to keep in mind when designing subroutines for new types of actions}
-When designing an encryption subroutine for an action type, we need to keep in mind that this subroutine needs to behave like a hash function of that action's description.  Only the description fields that make that action unique need to be used. An important consideration needs to be given to list fields, such as $additionalInput$.  For example, consider the example in Figure \ref{fig:action_parameters_ordering}.  In the case of a COMMAND\_LINE action order of parameters matter, and the two examples represent a different action.  In the case of a MAP\_REDUCE action, order does not matter, and both examples are equivalent.  When order does not matter, the list of parameters need to be ordered alphabetically by key and then value, so that the concatenation string to be encrypted is the same no matter the ordering of the parameters.
+\subsubsection{Considerations to keep in mind to design subroutines for new types of actions}
+A hash subroutine for an action type behaves like a hash function of that action's description.  Only the description fields that make that action unique need to be used.  Some fields of the JSON description are list fields.  Consider, for example, the \textbf{additionalInput} field in Figure \ref{fig:action_parameters_ordering}.  In the case of a COMMAND\_LINE action, the order of additional input parameters matters, since they are designed to be passed as arguments to the Main class of the action.  Since order matters, the two examples of Figure \ref{fig:action_parameters_ordering} represent two actions that are not equivalent. In the case of a MAP\_REDUCE action, order in a list field does not matter, and both examples represent actions that are equivalent between themselves. For types of actions where order does not matter in a list description field, their hash subroutine is to order the elements of the list alphabetically by key and then value, so that the hash value that corresponds to the action description is the same, no matter the order of the elements in the list.
 
 \begin{figure}[htbp]
 \centering
@@ -234,20 +231,18 @@ When designing an encryption subroutine for an action type, we need to keep in m
 
 
 \section{The Action Manager}
-The Action Manager's purpose is to submit individual actions to the Hadoop cluster for computation. In our current implementation it uses \textbf{Apache Oozie} as an intermediary, but there is nothing in the system that restricts us from doing away with \textbf{Apache Oozie} in the future.
+The Action Manager's purpose is to submit individual actions to the Hadoop cluster for computation. Its current implementation in the Pingo system uses \textbf{Apache Oozie} as an intermediary, but there is nothing in the system that restricts it from doing away with \textbf{Apache Oozie} in the future.
 
-On its current implementation, the Action Manager is ready to be distributed across different machines. That is, if there are multiple action managers running on different machines, they will not step up on each other toes, because they use the database as a mean of synchronization among them.
-
-The Action Manager works as follows:
+The Action Manager is ready to be distributed across different machines. That is, if there are multiple action managers running on different machines, they have synchronization mechanisms that allow them to work together.  This is a description of its functionality:
 
 \begin{enumerate}
-\item It maintains a synchronized queue Q with the actions that need to be submitted to the Hadoop cluster. The queue is capacity bounded and supports operations that wait for the queue to become non-empty when retrieving an element, and wait for space to become available in the queue when storing an element. All operations are thread safe.
+\item It maintains a synchronized queue Q with the actions that need to be submitted to the Hadoop cluster. The queue is capacity bounded and supports operations that wait for it to become non-empty when retrieving an element and that wait for space to become available in the queue when storing an element. All operations are thread safe.
 \item The queue is filled by an \textbf{Action Scraper} entity that queries the database for actions that are ready to be submitted.
 \item The \textbf{Action Manager} takes new actions from the queue and hands them to a pool of \textbf{Action Submitter} threads that will submit the actions to Hadoop and will also update the state of those actions in the database.
 \end{enumerate}
 
 \subsection{Action States}
-In order to support a cluster of servers working as action managers and to avoid the need to add a dependency to a distributed coordination server such as \textbf{Apache Zookeper} we have implemented synchronization using the database as our shared resource and defining a synchronization oriented semantic for each of the different states an action can have.
+In order to support a cluster of servers working as action managers and to avoid the need to add a dependency to a distributed coordination server such as \textbf{Apache Zookeper} the system implements synchronization using the database as a shared resource.  It defines a synchronization oriented semantic for each of the different states that an action can be in.
 
 An action can be in one of the following states: \textit{WAITING}, \textit{READY}, \textit{PROCESSING}, \textit{SUBMITTED}, \textit{RUNNING}, \textit{FINISHED}, \textit{FAILED}, and \textit{KILLED}.  (See Table \ref{tab:action_states} for a complete reference).
 
@@ -258,8 +253,8 @@ An action can be in one of the following states: \textit{WAITING}, \textit{READY
 \textbf{Action State} & \textbf{Description} \\ \hline
 WAITING & It means that the action has been submitted as part of a workflow and is waiting for parent actions to finish before it can be submitted to Hadoop.\\ \hline
 READY & The action is ready to be submitted to Hadoop because it either does not depend on any other action, or because all the actions on which it depends have finished their computations. \\ \hline
-PROCESSING & The ActionScraper found a READY action in the database and has placed it in the actions queue of the actions to be submitted. \\ \hline
-SUBMITTED & The action has been taken from the queue and has been submitted to Hadoop. \\ \hline
+PROCESSING & The Action Scraper found a READY action in the database and has placed it in the actions' queue of the actions to be submitted. \\ \hline
+SUBMITTED & The Action Manager removed the action from the queue and submitted it to Hadoop. \\ \hline
 RUNNING & Hadoop is running the computations that correspond to the action. \\ \hline
 FINISHED & Hadoop has finished executing the action successfully.\\ \hline
 FAILED & A run time error has occurred and the action did not finish executing.\\ \hline
@@ -269,19 +264,20 @@ KILLED & The user killed the action after it started executing.\\ \hline
 \end{table}
 
 \subsection{The Action Scraper}
-Every certain amount of time, the action scraper will query the database to find available actions and add them to the queue. Available actions are actions that are in the \textit{READY} state, or actions that have been in the \textit{PROCESSING} state for a long time. The reason why we add actions that have been in the \textit{PROCESSING} state for a long time is to account for the rare case where another \textbf{Action Manager} in another process started processing those actions, but because of some failure the process died before finish processing them.
+Every certain amount of time, the Action Scraper queries the database to find available actions and adds them to the queue. Available actions are actions that are in the \textit{READY} state, or actions that have been in the \textit{PROCESSING} state for a long time. The reason why it queries for actions that have been in the \textit{PROCESSING} state for a long time is to account for the rare case where another \textbf{Action Manager} in another process began processing those actions, but because of some failure the process died before it finished to process them.
 
-Before adding the action to the queue, the action scraper attempts to update the state of the action in the database to \textit{PROCESSING}. If the update fails because the action entity has changed in the database after it was queried by the scraper, then the scraper drops the action and does not add it to the \textbf{Action Manager} queue. Otherwise, if the update is successful, the action is added to the \textbf{Action Manager} queue. To illustrate how this synchronization technique is valid, consider the following example with action scrapers $A$ and $B$ and their corresponding action managers. Both scrapers $A$ and $B$ query the database for ready actions and both find action $a1$ to be in the $READY$ state. Without loss of generality, assume that $A$ is the first scraper to update the state of action $a1$ to \textit{PROCESSING}. When $B$ also attempts to update the state of action $a1$, it will realize that action $a1$ has already been changed by someone else, and it will immediately drop it.
+Before adding the action to the queue, the Action Scraper attempts to update the state of the action to \textit{PROCESSING}. If the update fails because the action entity has changed after it was queried by the scraper, then the scraper drops the action and does not add it to the \textbf{Action Manager}'s queue. Otherwise, if the update is successful, it adds the action to the queue. To illustrate how this synchronization technique is valid, consider the following example with action scrapers $A$ and $B$ and their corresponding action managers. Both scrapers $A$ and $B$ query the database for ready actions and both find action $a1$ to be in the $READY$ state. Without loss of generality, assume that $A$ is the first scraper to update the state of action $a1$ to \textit{PROCESSING}. When $B$ also attempts to update the state of action $a1$, it will realize that action $a1$ has already been changed by someone else, and it will immediately drop it.
 
-The synchronization technique described and exemplified in the above paragraph will be used multiple times by different components of the system. In general, that synchronization pattern can be applied in situations where multiple processes can potentially move an object $o$ from state $S1$ to state $S3$ (in the previous example $S1$ would be equivalent to our \textit{READY} state, and $S3$ to our \textit{SUBMITTED} state) but only one of the process should be allowed to do it. In order to solve the problem we create an intermediate state $S2$ (\textit{PROCESSING} in our case), and we let all the processes compete to be the first to change the state of $o$ to $S2$. All the loosing processes drop the processing of object $o$, and the winning process carries on.
+The synchronization technique described and exemplified in the above paragraph will be used multiple times by different components of the system. In general, that synchronization pattern can be applied in situations where multiple processes can potentially move an object $o$ from state $S1$ to state $S3$ (in the previous example $S1$ would be equivalent to our \textit{READY} state, and $S3$ to our \textit{SUBMITTED} state) but only one of the processes should be allowed to do it. In order to solve the problem, there is an intermediate state $S2$ (\textit{PROCESSING} in our case).  All the processes compete to be the first one to change the state of $o$ to $S2$. All the loosing processes drop the processing of object $o$, and the winning process carries on.
 
 \subsection{The Action Submitter}
-The Action Manager is constantly taking new elements from the queue and passing them to the Action Submitter threads that take care of submitting the actions to Hadoop. The decision to include in the queue actions that have been in the \textit{PROCESSING} state for a long time makes the design of the Action Submitter more careful. The submitter first attempts to update the state of the action to \textit{SUBMITTED} in the database. If it succeeds, then it actually submits the action to Hadoop. If there is an error while submitting the action, then it changes the state of the action back to \textit{READY}, which gives that action the opportunity to be picked again by an \textbf{Action Scraper} at some point later on. As an area of future improvement, a ceiling should be imposed over the number of times an action fails when submitted to the cluster, otherwise, the system will keep trying to submit the action forever.
+The Action Manager is constantly taking new elements from the queue and passing them to the Action Submitter threads that take care of submitting the actions to Hadoop. The decision to add actions that have been in the \textit{PROCESSING} state for a long time to the queue makes the design of the Action Submitter more careful. The submitter first attempts to update the state of the action to \textit{SUBMITTED}. If it succeeds, then it actually submits the action to Hadoop. If there is an error while submitting the action, then it changes the state of the action back to \textit{READY}, which gives that action the opportunity to be picked again by an \textbf{Action Scraper} at some time in the future. As an area of future improvement, a ceiling should be imposed over the number of times that a failing action is resubmitted to the cluster, or otherwise, the system will keep trying to submit the action forever.
 
 \section{The Workflow Manager}
-Now that we have explained the \textbf{Action Manager}, we are in a better shape to understand the inner workings of the \textbf{Workflow Manager}. The \textbf{Workflow Manager} receives the workflows submitted to the system and determines which of the actions from the workflow need to actually be submitted to Hadoop for computation. Those actions are inserted into the database and can initially be in one of two states: \textit{WAITING} or \textit{READY}. If they are in a $READY$ state, any active \textbf{Action Manager} will pick them up and submit them to the cluster for computation. If they are in a $WAITING$ state they will eventually be submitted for execution once their parents finish executing. The process of how actions in the $WAITING$ state are notified that their parents finish executing will be discussed later when we discuss the \textbf{Callback System}.
+The \textbf{Workflow Manager} receives the workflows submitted to the system and determines which of the actions from the workflow need to actually be submitted to Hadoop for computation. Those actions are inserted into the database and can initially be in one of two states: \textit{WAITING} or \textit{READY}. If they are in a $READY$ state, any active \textbf{Action Manager} will pick them up and submit them to the cluster for computation. If they are in a $WAITING$ state they will eventually be submitted for execution once their parents finish executing. The process of how actions in the $WAITING$ state are notified that their parents finish executing is discussed later in section \ref{sec:callback_system}.
 
 \subsection{Datasets}
+************ BEGIN HERE ***************
 The \textbf{Workflow Manager} makes its decision on whether an action needs to be computed or not by exploring the state of the datasets that are the outputs of the action. A dataset is another important entity in our model. A dataset entity is an entry of a dataset information in the database; its dataset file is the physical file in the distributed file system. A dataset entry is always linked in the database to its corresponding action definition. Dataset entities can be in one of the following states at any given time: \textit{TO\_DELETE}, \textit{TO\_STORE}, \textit{TO\_LEAF}, \textit{STORED}, $LEAF$, $STORED\_TO\_DELETE$, $PROCESSING$, $DELETING$ and $DELETED$. (See Table \ref{tab:dataset_states} for a complete reference).
 
 \begin{table}
@@ -353,6 +349,7 @@ Secondly, on the Workflow Manager algorithm, notice how there is a command descr
 Thirdly, for the sake of correctness of the overall state of the system, we have introduced an inefficiency in the Workflow Manager's algorithm. Notice that if a dataset $D$ is in $TO\_STORE$ or $TO\_LEAF$ state, we still prepare action $A$ for computation. A dataset $D$ is in $TO\_STORE$ or $TO\_LEAF$ state if its corresponding action is currently computing given dataset. This means that some other workflow submitted to the system is currently computing dataset $D$. To make the system more efficient, instead of asking the system to recompute action $A$, we could make all the children actions of $A$ to depend on $A'$ (the sibling action of $A$ from another workflow), and add a claim from the child actions of $A$ to dataset $D$. The problem with this approach is that both action $A'$ and dataset $D$ could be having their states changed to something contrary to the current situation at the same time we are planning to change the state of the children of action $A$ with outdated information on the states of $A'$ and $D$. Trying to handle that situation would mean that we need to introduce more complex synchronization mechanisms across multiple components of the system. For now we think that the benefits of simplicity will outweight the efficiency gains of trying to improve a situation that we consider will happen rarely.
 
 \section{The Callback System}
+\label{sec:callback_system}
 Once an action is submitted, three callbacks are provided to the Hadoop cluster so that it can notify back to the system of any relevant event regarding the execution of the action by the cluster. All callbacks are designed in such a way that the state of the action is always the same after multiple calls to the same callback.
 
 \subsection{The Success Callback}
