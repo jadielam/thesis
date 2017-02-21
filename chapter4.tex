@@ -154,9 +154,9 @@ Another important conclusion that is derived from the results reported in Figure
 \end{figure}
 
 \subsection{How computation time is affected by the types of workflows in the history of workflows}
-There are plenty of parameters in the workflow generator that we could play with in order to produce different kinds of workflows.  In our discussion we will only modify the parameter that determines the percentage of actions from previous workflows submitted to the system that are used by new workflows submitted to the system.  We will vary that parameter by 10 percent increments, starting at 5 percent, and ending at 55 percent.  We also fix the amount of available space of the system at 500MB.  You can find the complete report of the parameters used to configure Pingo and the workflows' generator in Appendix \ref{app:experiment_2_parameters}. We should expect an improvement in the gains in the decrease in computation time as the percentage of previous actions increases.
+It is possible to produce many different kinds of workflows by playing with the parameters of the workflow generator.  This experiment only focuses in the parameter that determines the percentage of actions from previous workflows submitted to the system that are used by new workflows submitted to the system.  In the experiment the parameter changes at 10 percent increments, starting at 5 percent, and ending at 55 percent.  The amount of available space of the system is fixed at 500MB.   The complete report of the parameters used to configure Pingo and the workflows' generator in Appendix \ref{app:experiment_2_parameters}.
 
-There are no surprises in the results of Figure \ref{fig:experiment2}.  Both, the simple and adaptive algorithms decrease their computation time as we increase the percentage of previous actions that a workflow includes.  This result was expected since, the more previously computed actions a workflow includes, the more opportunities the Pingo system will have to skip those computations since is likely that the outputs of those computations are available in storage.
+There are no surprises in the results of Figure \ref{fig:experiment2}.  Both, the simple and adaptive algorithms decrease their computation time as the percentage of previous actions that a workflow includes increases.  This result was expected since, the more previously computed actions a workflow includes, the more opportunities the Pingo system has to skip those computations since is likely that the outputs of those computations are available in storage.
 
 \begin{figure}
 \centering
@@ -166,13 +166,7 @@ There are no surprises in the results of Figure \ref{fig:experiment2}.  Both, th
 \end{figure}
 
 \section{Conclusions of our evaluations}
-From the evaluations of the algorithms we can conclude that adaptive family of algorithms will perform better in most scenarios than the simple algorithms by themselves.  in both algorithms, the definition that we used to assign value to each action was very simple, and it did not take into account the computation time of an action, only its frequency of usage.  Because of that, there is still room for improvements on the already promising results. 
+From the evaluations of the algorithms it can be concluded that the adaptive family of algorithms will perform better in the most basic scenarios than the simple algorithms by themselves.  In both algorithms, the definition used to assign value to each action was very simple, and it did not take into account the computation time of an action, only its frequency of usage.  Because of that, there is still room for improvements on the already promising results. 
 
-For future evaluations, we propose the creation of more complex adaptive algorithms.  The current algorithm works well when the \textbf{look back} parameter does not probabilistically change much.  In real life scenarios, more complex adaptive algorithms should be able to detect the rate at which the look back parameter might be changing, and adapt to it.
-The experiments we designed were able to give us some good insights into how the different algorithms we tested performed under different conditions. Because of that, we think that those evaluation experiments should serve as the foundation of any future evaluation methodology on the system. 
-
-
-
-
-
-
+For future evaluations, I propose the creation of more complex adaptive algorithms.  The current algorithm works well when the \textbf{look back} parameter does not probabilistically change much.  In real life scenarios, more complex adaptive algorithms should be able to detect the rate at which the look back parameter might be changing, and adapt to it.
+The experiments designed were able to give some good insights into how the different algorithms we tested performed under different conditions. Because of that, I think that those evaluation experiments should serve as the foundation of any future evaluation methodology on the system. 
