@@ -1,4 +1,4 @@
-\chapter{Evaluation methodology of the decision algorithms and results}
+\chapter{EVALUATION METHODOLOGY OF THE DECISION ALGORITHMS AND RESULTS}
 \label{chap:evaluation}
 This chapter proposes an evaluation methodology for the decision algorithms of Pingo.  It also reports on the evaluation of the two different kinds of algorithms that we have implemented.
 
@@ -156,7 +156,7 @@ Another important conclusion that is derived from the results reported in Figure
 \subsection{How computation time is affected by the types of workflows in the history of workflows}
 It is possible to produce many different kinds of workflows by playing with the parameters of the workflow generator.  This experiment only focuses in the parameter that determines the percentage of actions from previous workflows submitted to the system that are used by new workflows submitted to the system.  In the experiment the parameter changes at 10 percent increments, starting at 5 percent, and ending at 55 percent.  The amount of available space of the system is fixed at 500MB.   The complete report of the parameters used to configure Pingo and the workflows' generator in Appendix \ref{app:experiment_2_parameters}.
 
-There are no surprises in the results of Figure \ref{fig:experiment2}.  Both, the simple and adaptive algorithms decrease their computation time as the percentage of previous actions that a workflow includes increases.  This result was expected since, the more previously computed actions a workflow includes, the more opportunities the Pingo system has to skip those computations since is likely that the outputs of those computations are available in storage.
+There are no surprises in the results of Figure \ref{fig:experiment2}.  Both, the simple and adaptive algorithms decrease their computation time as the percentage of previous actions that a workflow includes increases.  This result was expected, since the more previously computed actions a workflow includes, the more opportunities the Pingo system has to skip those computations since is likely that the outputs of those computations are available in storage.
 
 \begin{figure}
 \centering
