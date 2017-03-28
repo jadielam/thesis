@@ -1,20 +1,20 @@
-\chapter{FOUNDATIONAL DESIGN PRINCIPLES OF THE SYSTEM}
+\chapter{THEORETICAL CONSIDERATIONS OF THE DATA REUSE PROBLEM}
 \label{chap:foundational}
-This chapter discusses the design of the \textbf{Pingo} system and the reasons behind it.  I have organized the discussion from a functional standpoint, discussing the design as it relates to the main functionalities of the system, the most essential functionality being the ability to receive the submission of workflows of actions and to carry out the computations represented by such actions.
+This chapter discusses theoretical motivations behind any data reuse system.  It introduces the data reuse problem after providing necessary background. It also presents two families of algorithms that provide solutions to the problem. The discussion is organized from a functional standpoint, discussing the theoretical motivations and tradeoffs that drive the design as they relate to the desirable functions of a system that attempts to solve the data reuse problem.
 
 \section{Skipping unnecessary computations}
 If a user submits the description of an action $A$ to be computed, but the system has previously computed an action $B$ that produced the exact same output that action $A$ will produce when computed, then action $A$ does not need to be computed.  The output of action $B$ can be returned immediately as the output of action $A$.  
 
-In order to achieve such functionality, there must be an equivalence relation between actions $A$ and $B$. This equivalence relation is not only restricted to the description of the actions provided by the user, but also to the place of the action in the workflow, since the output of an action is determined by both the definition of the computations represented by the action as well as the input to that action from previously computed actions. To define more precisely the equivalence relation between two actions, we need to first precisely define what is an \textbf{Action} and what is a \textbf{Workflow}.
+In order to achieve such functionality, there must be an equivalence relation between actions $A$ and $B$. This equivalence relation is not only restricted to the description of the actions provided by the user, but also to the place of the action in the workflow, since the output of an action is determined by both the definition of the computations represented by the action as well as the input to that action from previously computed actions. To define more precisely the equivalence relation between two actions, precise definitions of \textbf{Actions} and \textbf{Workflows} are needed.
 
 \subsection{Actions}
-The definition of an \textbf{action} allows or restricts the possibility to desgin practical functionality that optimizes the time spent computing a workflow. 
+The definition of an \textbf{action} allows or restricts the possibility to design practical functionality that optimizes the time spent computing a workflow. 
 
 Oversimplifying things, an action can be thought of as a pure function $f:A \rightarrow B$.  Suppose that the system is asked to compute $f(a)$.  If the system has previously computed $b=g(c)$, and it can be determined that $g=f$ and that $c=a$, then the system can skip the computation of $f(a)$ (if it is that output $b$ has not been deleted).  Determining if $a$ and $c$ are equal to each other is trivial, but it can be time consuming if the inputs are big.  Determining if $f$ and $g$ are equivalent is more difficult and has deep theoretical ramifications (it is computationally impossible in the most broad sense, since the Halting Problem can be reduced to this problem).
 
-But comparing actions to pure mathematical functions is not completely accurate.  \cite{wiki:purefunction} says that a pure function is a function that "always evaluates the same result value given the same argument values.  The function result cannot depend on any hidden information or state that may change while program execution proceeds." In some cases, as next chapter shows, there will be nothing stopping actions from reading values from the environment, which in general is not under the control of the \textbf{Pingo} system.
+But comparing actions to pure mathematical functions is not completely accurate.  \cite{gifford1986integrating} says that a pure function is a function that is "referentially transparent: it does not cause side-effects, its value is not affected by side-effects, and it returns the same value each time it is evaluated." In other words, the function result cannot depend on any hidden or random information or state that may change while the function executes, or across two different executions of the function. In some cases, as next chapter shows, there will be nothing stopping actions from reading values from the environment, which in general is not under the control of the system.
 
-Because of these difficulties, the system needs a practical approach to determine the equivalency between two actions.  That approach needs to derive from a closer look to the ideal functionality that the system should implement.  Pingo receives descriptions of actions as structured text.  Those descriptions are simply a collection of parameters such as: path to input folders, path to the executable (or source code) of the action, extra input parameters, etc. Pingo uses that description to execute a corresponding computation that produces an output as a file (or as a collection of files in a folder). A measure of equivalency between two actions should satisfy the following two simple properties:
+Because of these difficulties, the system needs a practical approach to determine the equivalency between two actions.  That approach needs to derive from a closer look to the ideal functionality that the system should implement.  In most cases, a system receives descriptions of actions as structured text.  Those descriptions are simply a collection of parameters such as: path to input folders, path to the executable (or source code) of the action, extra input parameters, etc. The system uses that description to execute a corresponding computation that produces an output as a file (or as a collection of files in a folder). A measure of equivalency between two actions should satisfy the following two simple properties:
 
 \begin{enumerate}
 \item If two action descriptions produce the same output \textbf{when executed in an ideal controlled environment}, they should be considered equivalent.
@@ -81,7 +81,7 @@ Another strategy that can be used to determine if an action's output already exi
 
 An algorithm that implements the ideas described above is highly dependent on the semantics of the description of the actions.  Because of that, we leave its discussion to Chapter \ref{chap:implementation}.  But there are enough elements that allow us to arrive at certain conclusions regarding the viability of the approach.  Firstly, comparing the hash value of action $a_i$ to the hash values of the datasets in the system is something that can be done in constant time if the datasets are properly indexed.  Secondly, since it is impossible to know beforehand the set of keys that are going to be hashed, the possibility of perfect hashing is discarded, and at least an upper bound analysis of what would be the probability of a clash between the hash signatures of non-equivalent actions is in place.  
 
-An exhaustive mathematical analysis goes beyond the scope of this dissertation, but we can make some educated estimations.  Assume that $n$ is the number of bits of the hash signatures produced by the hashing algorithm, and that D is the number of datasets currently in storage.  The question to answer is: What is the probability of any two non-equivalent datasets of having the same hash value?  There are $2^n$ possible hash values.  Assuming that all of them have the same probability of occurring, then the probability that all the $N$ hash values are different, $1 - p(N)$ is:
+Assume that $n$ is the number of bits of the hash signatures produced by the hashing algorithm, and that D is the number of datasets currently in storage.  We provide an upper bound of the probability of any two non-equivalent datasets of having the same hash value.  There are $2^n$ possible hash values.  Assuming that all of them have the same probability of occurring, then the probability that all the $N$ hash values are different, $1 - p(N)$ is:
 
 \begin{multline}
 	1 - p(N) = 1 \times \frac{2^n - 1}{2^n} \times \frac{2^n - 2}{2^n} \times . . . \times \frac{2^n - N + 1}{2^n} \\ 
@@ -97,9 +97,9 @@ Placing a constraint of the amount of space available to store intermediate data
 \subsection{The History of Workflows}
 The concept of \textbf{History of Workflows} becomes useful when the constraint of bounded storage capacity is added to the system. Since the final objective is to optimize the time of computing future workflows, the decision system can be thought of as an optimization problem that tries to "guess" which datasets will be more relevant in the future. How to accurately predict which datasets are needed in the future is an open question that has multiple valid answers. Most of the potential valid strategies make use of the history of workflows submitted to the system up to that point.  Different strategies might need different things from the history of workflows. Because of that, there needs to be an API layer that provides varied ways to query the history of workflows to obtain a diverse set of statistics over specified \textbf{ranges of time} and at different \textbf{resolutions}.
 
-\subsection{The Decision System}
+\subsection{The Data Reuse Problem}
 \label{sec:decision_system}
-Pingo's core functionality is the Decision System that determines which datasets need to remain and which datasets need to be deleted from storage.  The Decision System can either run each time a new workflow is submitted to the system, or it can run only when space occupied by stored datasets reaches a certain threshold of the total capacity.  The second option makes more sense, since under it the system remains in compliance with the bounded storage constraint, but uses less computational resources. The Decision System defines an interface that can be implemented by different decision algorithms to determine which datasets currently in storage need to be deleted. The interface takes the following elements as input:
+A core functionality of any workflow management system that wants to tackle the data reuse problem would be its decision system.  The decision system determines which datasets need to remain and which datasets need to be deleted from storage.  It can either run each time a new workflow is submitted to the system, or it can run only when space occupied by stored datasets reaches a certain threshold of the total capacity.  The second option makes more sense, since under it the system remains in compliance with the bounded storage constraint, but uses less computational resources. The decision system defines an interface that can be implemented by different decision algorithms to determine which datasets currently in storage need to be deleted. The interface takes the following elements as input:
 
 \begin{enumerate}
 \item The History of Workflows submitted to the system, $H = (W_1, W_2, ..., W_n)$, where each $W_i$ is a DAG. It is left to the algorithm to decide if it will use the entire history or only a subset of it.
@@ -108,10 +108,75 @@ Pingo's core functionality is the Decision System that determines which datasets
 
 \item $s: D \to \mathtt{N} $, where $s(d_i)$ is the storage space in megabytes that dataset $d_i$ occupies in the file system.
 
+\item $c_H: D \to \mathtt{N}$, where $c_H(d_i)$ is the number of times that dataset $d_i$ appears in History of Workflows $H$.
+
 \item $t: A \to \mathtt{N}$, where $t(a_i)$ is the computational time in seconds that it takes to action $a_i$ to compute its output $d_i$.  If action $a_i$ has been computed multiple times, the average of those times is reported.
 
-\item $F$, the amount of space that we need to free on the file system.
+\item $F$, the amount of space to free on the file system.
 
 \end{enumerate}
 
 The algorithm outputs a set $B \subset D$ such that $\sum_{d \in B}{s(d)}$ is greater than or equal to $F$.  Set $B$ needs to be selected in such a way that there is no other subset $B'$ of $D$ of storage size equal or greater than $B$ such that if datasets of $B'$ instead of $B$ are removed from storage, the system would spend less time computing future workflow submissions. 
+
+\subsection{Two families of algorithms}
+This section introduces two families of algorithms that solve the problem introduced in Section \ref{sec:decision_system} with varying degrees of success. Chapter \ref{chap:evaluation} introduces a methodology to evaluate the algorithms' performance from a practical standpoint.
+
+\subsection{Least Valuable Algorithm Family}
+This is a very simple algorithm that represents a big family of possible algorithms that can be implemented.  The idea is to retain in storage the datasets with the most valuable datasets, according to some evaluation metric. Implementations of this base algorithm define their own evaluation metrics.  For example, Algorithm \ref{alg:most_commonly_used_decision} defines value as the number of times the dataset is used throughout the history of workflows times the time it takes to compute such dataset. That is a very simple definition of value, but provides the most straightforward implementation.  Algorithm \ref{alg:most_commonly_used_decision} is a good baseline to compare against.
+
+\begin{algorithm}
+\begin{singlespace}
+\caption{Least-Valuable-Datasets Algorithm}
+\label{alg:most_commonly_used_decision}
+\begin{algorithmic}[1]
+\Procedure{LeastValuable}{$H, D, c_H, s, t, F$}
+	\State $datasetValues \gets List()$
+	\For{$d_i$ in $H$}
+		\State $datasetValues.append((d_i, c_H(d_i) * t(d_i)))$
+	\EndFor
+	\State $sortedDatasetValues \gets sortByValue(datasetValues)$
+	\State $spaceFred \gets 0$
+	\State $toDelete \gets List()$
+	\For{$d$, $value$ in $sortedDatasetValues$}
+		\If{$spaceFred \geq F$}
+			\State \textbf{break}
+		\EndIf	
+		\State $toDelete.append(dataset)$
+		\State $spaceFred \gets spaceFred + s(d)$
+	\EndFor
+	
+	\State \textbf{return} $toDelete$
+\EndProcedure
+\end{algorithmic}
+\end{singlespace}
+\end{algorithm}
+
+\subsection{Simple Adaptive Algorithm Family}
+Algorithms that belong to the $Least Valuable Algorithm$ family are a good starting point, but they have a weakness: they treat the entire history of workflows in the same way.  This is troublesome, specially if it is the case that most recent datasets are more likely to be used than less recent ones.  One important question to ask is: How far back into the history of workflows do we need to look to determine the value of datasets? Finding good answers to such question is an area of further research.  I propose a simple adaptive algorithm, described in Algorithm \ref{alg:adaptive_most_commonly_used_decision}. Such algorithm searches over the entire history of workflows to determine some statistics that help decide how far back do workflows usually look back when reusing datasets. After computing such statistics, the algorithm calls the corresponding procedure from the \textbf{Most Valuable Algorithm Family} in order to determine the datasets to delete in this smaller workflow history.
+
+\begin{algorithm}
+\begin{singlespace}
+\caption{Adaptive Least-Valuable-Datasets Algorithm}
+\label{alg:adaptive_most_commonly_used_decision}
+\begin{algorithmic}[1]
+\Procedure{AdaptiveMostCommonlyUsed}{$H, D, c_H, s, t, F$}
+	\State $recencyList \gets List()$
+	\State $n \gets length(H)$
+	\For{$i$ in from 1 to $n$}
+		\For{dataset $d$ in $W_i$}
+			\State $W_j \gets$ previous workflow where d was used.
+			\If{$W_j$ \textbf{is not} $Null$}
+				\State $recencyList.append(i - j)$
+			\EndIf
+		\EndFor
+			
+	\EndFor
+	\State $\mu \gets mean(recencyList)$
+	\State $\sigma \gets std(recencyList)$
+	\State $SH \gets H.subList(n - \mu - 2\sigma, n + 1)$
+	\State \textbf{return} $LeastValuable(SH, D, c_{SH}, s, t, F)$
+
+\EndProcedure
+\end{algorithmic}
+\end{singlespace}
+\end{algorithm}
