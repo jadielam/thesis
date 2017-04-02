@@ -1,17 +1,17 @@
 \chapter{IMPLEMENTATION OF THE SYSTEM}
 \label{chap:implementation}
-\section{Birdeye overview}
-The Pingo system is a group of independent processes that together manage scientific workflow computations and their outputs.  This chapter first gives a bird-eye overview of Pingo, and then explains each of the components with more detail. 
+\section{Bird's eye overview}
+The Pingo system is a group of independent processes that together manage scientific workflow computations and their outputs.  This chapter first gives a bird's eye overview of Pingo, and then explains each of the components with more detail. 
 
-From a user point of view, the interaction process proceeds as follows: The end-user uses JSON to define a workflow of computations and submits the workflow of computations to an endpoint of the system. Also, before submitting the actions to the system, the user needs to have placed the jar files that contain the "executables" that carry those computations in a folder in a distributed file system that is accessible to Pingo. There is a submission manager that takes care of parsing the workflow and analyzing the directed acyclic graph of computations defined in it in order to determine which actions need to be computed.  Those actions are then submitted to the database with either one of two states: $WAITING$ or $READY$.
+From a user point of view, the interaction process proceeds as follows: The end-user defines a workflow of computation in JSON format and submits it to an endpoint of the system. But before submitting the workflow of actions to the system, the user needs to have placed the files that contain the "executables" that carry those computations in a folder in a distributed file system that is accessible to Pingo. There is a \textbf{Submission Manager} whose function is to parse the JSON description of the workflow and to analyze the directed acyclic graph of computations defined in it in order to determine which actions need to be computed.  Those actions are assigned one of two states: $WAITING$ or $READY$.
 
-There exists a process called the \textbf{Action Submitter} that is constantly querying the database, pulling actions that are ready to be submitted for computation. The \textbf{Action Submitter} converts the JSON definition of the action into an xml definition that is understood by Hadoop, and then submits the computation to be carried out by Hadoop (by Hadoop we mean any of the supported subsystems of the Hadoop ecosystem, such as MapReduce, Spark, Pig scripts, etc). There can be multiple Action Submitter processes working at the same time.  To synchronize efforts, each process will use the database and its locking mechanisms guarantying that no action will be submitted twice for computation to Hadoop.
+There exists a process called the \textbf{Action Submitter} that is constantly pulling actions that are ready to be submitted for computation. The \textbf{Action Submitter} converts the JSON definition of the action into an XML definition that is understood by Hadoop, and submits the computation to Hadoop for execution (Hadoop here means any of the supported subsystems of the Hadoop ecosystem, such as MapReduce, Spark, Pig scripts, etc). There can be multiple \textbf{Action Submitter} processes working at the same time.  To synchronize efforts, the processes use a database as synchronization mechanism to guarantee that no action is submitted to Hadoop twice.
 
-Another independent piece of the system is the \textbf{Callback Manager}.  When an action is submitted  to Hadoop for computation, a callback endpoint is provided so that Hadoop can notify back Pingo with information about the computation: if it finished, failed or was killed, etc.  As a redundancy measure, the \textbf{Callback Manager} constantly polls Hadoop for information regarding each of the actions submitted for computation.  Once an action finishes computing, the callback manager updates in the database the state of the action and of the dataset produced by the action.  It also updates the state of any action that depends on the output of the computation that just finished.
+Another independent piece of the system is the \textbf{Callback Manager}.  When an action is submitted  to Hadoop, a callback endpoint is provided so that Hadoop can notify back Pingo with information about the computation: if it finished, failed or was killed, etc.  As a redundancy measure, the \textbf{Callback Manager} constantly polls Hadoop for information regarding each of the actions submitted for computation.  Once an action finishes computing, the \textbf{Callback Manager} updates the state of the action and of the dataset produced by the action in the database. It also updates the state of any action that depends on the output of the computation that just finished.
 
 The \textbf{Decision Manager} is another independent process that frequently queries the database and the file system to determine which of the datasets produced by actions should be kept in the file system, and which ones should be deleted. The Decision Manager is the predictive brain of the system, and its decisions will affect the computation time of future workflow submissions to the system.
 
-The last independent process of the system is the \textbf{Dataset Manager}.  The \textbf{Dataset Manager} enforces the decisions of the Decision Manager.  It queries the database for actions whose state has been changed to $TO\_DELETE$. If the dataset is not currently locked by any action, it deletes it from the file system.
+The last independent process of the system is the \textbf{Dataset Manager}.  The \textbf{Dataset Manager} enforces the decisions of the \textbf{Decision Manager}.  It queries the database for actions whose state has been changed to $TO\_DELETE$. If the dataset is not currently locked by any action, it deletes it from the distributed file system.
 
 \section{The Workflow Definition Language}
  The JSON format is a good choice for the definition of workflows because its expressiveness is sufficient for the needs of Pingo, and it is also very human readable. \cite{bray2014javascript} provides a memo that defines the set of formatting rules of the JSON format.
@@ -59,25 +59,27 @@ The last independent process of the system is the \textbf{Dataset Manager}.  The
 \label{fig:workflow_definition_language}
 \end{figure}
 
-The workflow definition in Figure \ref{fig:workflow_definition_language} consists of two actions whose ids are 1 and 2 where action with id 2 must be executed after action with id 1 finishes. This is expressed by making action 1 a parent of action 2. These are the constraints imposed by the system on the structure of a workflow:
+The workflow definition in Figure \ref{fig:workflow_definition_language} consists of two actions whose ids are 1 and 2. In this workflow, action 2 must be executed after action 1 finishes. This is expressed by making action 1 a parent of action 2. 
+
+These are the constraints imposed by the system on the structure of a workflow:
 \begin{enumerate}
 \item A workflow most have at least one action.
 \item No two actions can have one same id in a workflow definition.
 \item If an action \textit{id} is referenced somewhere in the workflow definition (they can be referenced in \textit{startActionId}, \textit{endActionId}, and within the array of \textit{parentActions}), that action must be defined in the array of actions of the workflow.
-\item The \textit{parentActions} attribute of an action will define relationships among the actions that can be represented as a directed graph. Specifically, this directed graph must be a directed \textbf{acyclic} graph (DAG).
+\item The \textit{parentActions} attribute of an action will define relationships among the actions that can be represented as a directed graph. Specifically, this directed graph must be a DAG.
 \end{enumerate}
 
 If one of the constraints is not satisfied, the application will throw an error at workflow submission time.
 
 \subsection{Actions}
-Actions must have \textit{id}, \textit{name} and \textit{type} attributes. They have two optional boolean attributes: \textit{forceComputation} and \textit{isManaged}. If \textit{forceComputation} is set to \textit{True}, it means that the action will be forced to compute its output regardless of if its dataset  already exists in storage or not. If it is set to \textit{False}, it means that the system has the freedom to determine if the action will be computed or not. The default is \textit{False}.
+Actions must have \textit{id}, \textit{name} and \textit{type} attributes. They have two optional boolean attributes: \textit{forceComputation} and \textit{isManaged}. If \textit{forceComputation} is set to \textit{True}, it means that the action will compute its output regardless of if its dataset already exists in storage or not. If it is set to \textit{False}, it means that the system has the freedom to determine if the action will be computed or not. The default is \textit{False}.
 
-If the attribute \textit{isManaged} is set to \textit{True}, it means that the path where the output of this action will be stored is determined and managed by the system. If \textit{isManaged} is set to \textit{False}, it means that the path where the output of this action will be stored is not determined or managed by the system, and that path must be provided by the user. The user needs to have Read/Write permissions to any path it provides, otherwise, the execution of the action will fail when attempting to persist the output. The default value for \textit{isManaged} is \textit{True}.
+If the attribute \textit{isManaged} is set to \textit{True}, it means that the path where the output of this action will be stored is determined and managed by the system. If \textit{isManaged} is set to \textit{False}, it means that the path where the output of this action will be stored is not determined or managed by the system, and that path must be provided by the user. The system needs to have Read/Write permissions to any path the user provides, otherwise, the execution of the action will fail when attempting to persist the output. The default value for \textit{isManaged} is \textit{True}. The system does not apply computation optimizations on non-managed actions.
 
-Action names do not need to be unique. An action name is just a mnemonic resource to help with the recall of what the action does. Also, depending on the action type, there might be other required attributes too. Currently, Pingo has implemented functionality for two types of actions: \textbf{Command-line action} and \textbf{MapReduce v1.0 action}, but only \textbf{Command-Line actions} are fully supported. The roadmap includes adding support for \textbf{Spark actions} and \textbf{Sqoop actions}
+Action names do not need to be unique. An action name is just a mnemonic resource to help with the recall of what the action does. Also, depending on the action type, there might be other required attributes too. Currently, Pingo has implemented functionality for two types of actions: \textbf{Command-line action} and \textbf{MapReduce v1.0 action}. Only \textbf{Command-Line actions} are fully supported. The roadmap includes adding support for \textbf{Spark actions} and \textbf{Sqoop actions}.
 
 \subsubsection{Command Line Action}
-A Command Line action is a Java program to be executed by some machine in the Hadoop cluster.  Before the user submits a workflow with the action, they need to have created an action folder in the Hadoop cluster's file system that contains the Java jar file with the action's executables, as well as any jars with other libraries needed by the Java program.  The JSON description of the action (Figure \ref{fig:command_line_action_definition}), includes the main class of the action, as well as any command line parameters that are passed as arguments to the main class. For each kind of action, there is a contract that defines the order on which parameters provided in the action's JSON description are passed as arguments to the main class.  For example, for Command-Line actions the contract is designed in such a way that the Main class will read first in order the configuration parameters given in the field $additionalInput$, and then the rest of the arguments will be the paths to the output of its parent actions, also received ordered by the id of the parent action.  
+A Command Line action is a Java program to be executed by some machine in the Hadoop cluster.  Before the user submits a workflow with the action, they need to have created an action folder in the Hadoop cluster's file system that contains the Java jar file with the action's executables, as well as any jars with other libraries needed by the Java program.  The JSON description of the action (Figure \ref{fig:command_line_action_definition}), includes the main class of the action, as well as any command line parameters that are passed as arguments to the main class. For each kind of action, there is a contract that defines the order on which parameters in the action's JSON description are passed as arguments to the executables. For Command-Line actions the contract is that the Main class reads first the configuration parameters given in the field $additionalInput$ in the order given, and then the rest of the arguments are the paths to the output of its parent actions, ordered by the id of the parent action.
 \begin{figure}
 \begin{mdframed}
 \begin{singlespace}
@@ -123,7 +125,7 @@ I}
 \end{figure}
 
 \subsection{Determining Action's output path}
-There must a one-to-one relationship between an action and its output path, therefore the output path can also serve as the identifier of an action. As described in Section \ref{sec:encryption}, it is better to search for equivalent actions using hashes of actions. A hash will derive from an action's description and from its lineage (the hashes of its parents). Algorithm \ref{alg:action_encryption} describes the procedure to produce a unique string.  It takes as input parameters $p$ and $a$, where $ps$ is a list with the generated unique string of parents, and $a$ is the action description.  Depending on the action $a$'s type, Algorithm \ref{alg:action_encryption} uses a different subroutine to analyze the action's description. Algorithm \ref{alg:command_line_action_encryption} shows the subroutine for the Command Line Action.
+There must a one-to-one relationship between an action and its output path, therefore the output path can also serve as the identifier of an action. As described in Section \ref{sec:encryption}, it is better to search for equivalent actions using hashes of actions. A hash will derive from an action's description and from its lineage (the hashes of its parents). Algorithm \ref{alg:action_encryption} describes the procedure to produce a unique string.  It takes as input parameters $ps$ and $a$, where $ps$ is a list with the generated unique string of parents, and $a$ is the action description.  Depending on the type of Action $a$, Algorithm \ref{alg:action_encryption} uses a different subroutine to analyze the action's description. Algorithm \ref{alg:command_line_action_encryption} shows the subroutine for the Command Line Action type.
 
 \begin{algorithm}
 \begin{singlespace}
@@ -153,7 +155,7 @@ There must a one-to-one relationship between an action and its output path, ther
 \caption{Command Line Action Hashing}
 \label{alg:command_line_action_encryption}
 \begin{algorithmic}[1]
-\Procedure{CommandLineActionEncryption}{$a$}
+\Procedure{CommandLineActionHashing}{$a$}
 \State $concatenationString \gets " "$
 \State $concatenationString.append(a.name)$
 \State $concatenationString.appendSeparator()$
@@ -171,7 +173,7 @@ There must a one-to-one relationship between an action and its output path, ther
 \end{algorithm}
 
 \subsubsection{Considerations to keep in mind to design subroutines for new types of actions}
-A hash subroutine for an action type behaves like a hash function of that action's description.  Only the description fields that make that action unique need to be used.  Some fields of the JSON description are list fields.  Consider, for example, the \textbf{additionalInput} field in Figure \ref{fig:action_parameters_ordering}.  In the case of a COMMAND\_LINE action, the order of additional input parameters matters, since they are designed to be passed as arguments to the Main class of the action.  Since order matters, the two examples of Figure \ref{fig:action_parameters_ordering} represent two actions that are not equivalent. In the case of a MAP\_REDUCE action, order in a list field does not matter, and both examples represent actions that are equivalent between themselves. For types of actions where order does not matter in a list description field, their hash subroutine needs to order the elements of the list alphabetically by key and then value, so that the hash value that corresponds to the action description is the same, no matter the order of the elements in the list.
+A hash subroutine for an action type behaves like a hash function of that action's description.  Only the description fields that make that action unique need to be used.  Some of the fields of the JSON description are sequences.  Consider, for example, the \textbf{additionalInput} field in Figure \ref{fig:action_parameters_ordering}.  In the case of a COMMAND\_LINE action, the order of additional input parameters matters, since they are designed to be passed as arguments to the Main class of the action.  Since order matters, the two examples of Figure \ref{fig:action_parameters_ordering} represent two actions that are not equivalent. In the case of a MAP\_REDUCE action, order in a sequence field does not matter, and both examples represent actions that are equivalent between themselves. For sequence fields where order does not matter, the hash subroutine needs to order the elements of the list alphabetically by key and then value, so that the hash value that corresponds to the action description is the same, no matter the order of the elements in the list.
 
 \begin{figure}[htbp]
 \centering
@@ -230,30 +232,29 @@ A hash subroutine for an action type behaves like a hash function of that action
 
 
 \section{The Action Manager}
-The \textbf{Action Manager}'s purpose is to submit individual actions to the Hadoop cluster for computation. Its current implementation in the Pingo system uses \textbf{Apache Oozie} as an intermediary, but there is nothing in the system that restricts it from doing away with \textbf{Apache Oozie} in the future.
+The \textbf{Action Manager}'s purpose is to submit individual actions to the Hadoop cluster for computation. Its current implementation in the Pingo system uses \textbf{Apache Oozie} as an intermediary. The Action Manager is safe for use in a distributed manner, since it has synchronization mechanisms that allow multiple action managers to work together.  
 
-The Action Manager is ready to be distributed across different machines. That is, if there are multiple action managers running on different machines, they have synchronization mechanisms that allow them to work together.  This is a description of its functionality:
-
+This is a description of its functionality:
 \begin{enumerate}
-\item It maintains a synchronized queue Q with the actions that need to be submitted to the Hadoop cluster. The queue is capacity bounded and supports operations that wait for it to become non-empty when retrieving an element and that wait for space to become available in the queue when storing an element. All operations are thread safe.
+\item It maintains a synchronized queue Q with the actions to be submitted to the Hadoop cluster. The queue is capacity bounded and supports operations that wait for it to become non-empty when retrieving an element and that wait for space to become available in the queue when storing an element. All operations are thread safe.
 \item The queue is filled by an \textbf{Action Scraper} entity that queries the database for actions that are ready to be submitted.
-\item The \textbf{Action Manager} takes new actions from the queue and hands them to a pool of \textbf{Action Submitter} threads that will submit the actions to Hadoop and will also update the state of those actions in the database.
+\item The \textbf{Action Manager} pops new actions from queue Q and hands them to a pool of \textbf{Action Submitter} threads that will submit the actions to Hadoop and will also update the state of those actions in the database.
 \end{enumerate}
 
 \subsection{Action States}
-In order to support a cluster of servers working as action managers and to avoid the need to add a dependency to a distributed coordination server such as \textbf{Apache Zookeper} the system implements synchronization using the database as a shared resource.  It defines a synchronization oriented semantic for each of the different states that an action can be in.
+In order to support a cluster of servers working as action managers and to avoid the need to add a dependency to a distributed coordination server such as \textbf{Apache Zookeper}, the system implements synchronization using the database as a shared resource.  It defines a synchronization oriented semantic for each of the different states of an action.
 
-An action can be in one of the following states: \textit{WAITING}, \textit{READY}, \textit{PROCESSING}, \textit{SUBMITTED}, \textit{RUNNING}, \textit{FINISHED}, \textit{FAILED}, and \textit{KILLED}.  (See Table \ref{tab:action_states} for a complete reference).
+Actions can be in one of the following states: \textit{WAITING}, \textit{READY}, \textit{PROCESSING}, \textit{SUBMITTED}, \textit{RUNNING}, \textit{FINISHED}, \textit{FAILED}, and \textit{KILLED}.  (See Table \ref{tab:action_states} for a complete reference).
 
 \begin{table}
 \begin{tabular}{| l | p{12cm} |}
 
 \hline
 \textbf{Action State} & \textbf{Description} \\ \hline
-WAITING & It means that the action has been submitted as part of a workflow and is waiting for parent actions to finish before it can be submitted to Hadoop.\\ \hline
+WAITING & The action has been submitted as part of a workflow and is waiting for parent actions to finish before it can be submitted to Hadoop.\\ \hline
 READY & The action is ready to be submitted to Hadoop because it either does not depend on any other action, or because all the actions on which it depends have finished their computations. \\ \hline
-PROCESSING & The Action Scraper found a READY action in the database and has placed it in the actions' queue of the actions to be submitted. \\ \hline
-SUBMITTED & The Action Manager removed the action from the queue and submitted it to Hadoop. \\ \hline
+PROCESSING & The \textbf{Action Scraper} found a READY action in the database and has placed it in the actions' queue of the actions to be submitted. \\ \hline
+SUBMITTED & The \textbf{Action Manager} removed the action from the queue and submitted it to Hadoop. \\ \hline
 RUNNING & Hadoop is running the computations that correspond to the action. \\ \hline
 FINISHED & Hadoop has finished executing the action successfully.\\ \hline
 FAILED & A run time error has occurred and the action did not finish executing.\\ \hline
@@ -263,20 +264,20 @@ KILLED & The user killed the action after it started executing.\\ \hline
 \end{table}
 
 \subsection{The Action Scraper}
-Every certain amount of time, the Action Scraper queries the database to find available actions and adds them to the queue. Available actions are actions that are in the \textit{READY} state, or actions that have been in the \textit{PROCESSING} state for a long time. The reason why it queries for actions that have been in the \textit{PROCESSING} state for a long time is to account for the rare case where another \textbf{Action Manager} in another process began processing those actions, but because of some failure the process died before it finished to process them.
+Every certain amount of time, the \textbf{Action Scraper} queries the database to find available actions and adds them to queue Q. Available actions are actions that are in the \textit{READY} state, or actions that have been in the \textit{PROCESSING} state for a long time. The reason why it queries for actions that have been in the \textit{PROCESSING} state for a long time is to account for the rare case where another \textbf{Action Manager} began processing those actions, but because of some failure the process died before it finished to process them.
 
-Before adding the action to the queue, the Action Scraper attempts to update the state of the action to \textit{PROCESSING}. If the update fails because the action entity has changed after it was queried by the scraper, then the scraper drops the action and does not add it to the \textbf{Action Manager}'s queue. Otherwise, if the update is successful, it adds the action to the queue. To illustrate how this synchronization technique is valid, consider the following example with action scrapers $A$ and $B$ and their corresponding action managers. Both scrapers $A$ and $B$ query the database for ready actions and both find action $a1$ to be in the $READY$ state. Without loss of generality, assume that $A$ is the first scraper to update the state of action $a1$ to \textit{PROCESSING}. When $B$ also attempts to update the state of action $a1$, it will realize that action $a1$ has already been changed by someone else, and it will immediately drop it.
+Before adding the action to Q, the \textbf{Action Scraper} attempts to update the state of the action to \textit{PROCESSING}. If the update fails because the action entity has changed after it was queried by the scraper, then the scraper drops the action and does not add it to the \textbf{Action Manager}'s queue. Otherwise, if the update is successful, it adds the action to the queue. To illustrate how this synchronization technique is valid, consider the following example with action scrapers $A$ and $B$ and their corresponding action managers. Both scrapers $A$ and $B$ query the database for ready actions and both find action $a1$ to be in the $READY$ state. Without loss of generality, assume that $A$ is the first scraper to update the state of action $a1$ to \textit{PROCESSING}. When $B$ also attempts to update the state of action $a1$, it will realize that action $a1$ has already been updated by someone else, and it will immediately drop it.
 
-The synchronization technique described and exemplified in the above paragraph is used multiple times by different components of the system. In general, that synchronization pattern can be applied in situations where multiple processes can potentially move an object $o$ from state $S1$ to state $S3$ (in the previous example $S1$ would be equivalent to the \textit{READY} state, and $S3$ to the \textit{SUBMITTED} state) but only one of the processes should be allowed to do it. In order to solve the problem, there is an intermediate state $S2$ (\textit{PROCESSING} in this case).  All the processes compete to be the first one to change the state of $o$ to $S2$. All the loosing processes drop the processing of object $o$, and the winning process carries on.
+The synchronization technique described and exemplified in the above paragraph is used by other components of the system. In general, that synchronization pattern can be applied in situations where multiple processes can potentially move an object $o$ from state $S1$ to state $S3$ (in the previous example $S1$ would be equivalent to the \textit{READY} state, and $S3$ to the \textit{SUBMITTED} state) but only one of the processes should be allowed to do it. In order to solve the problem, there is an intermediate state $S2$ (\textit{PROCESSING} in this case).  All the processes compete to be the first one to change the state of $o$ to $S2$. All the loosing processes drop the processing of object $o$, and the winning process carries on.
 
 \subsection{The Action Submitter}
-The Action Manager is constantly taking new elements from the queue and passing them to the Action Submitter threads that take care of submitting the actions to Hadoop. The decision to add actions that have been in the \textit{PROCESSING} state for a long time to the queue makes the design of the Action Submitter more careful. The submitter first attempts to update the state of the action to \textit{SUBMITTED}. If it succeeds, then it actually submits the action to Hadoop. If there is an error while submitting the action, then it changes the state of the action back to \textit{READY}, which gives that action the opportunity to be picked again by an \textbf{Action Scraper} at some time in the future. As an area of future improvement, a ceiling should be imposed over the number of times that a failing action is resubmitted to the cluster, or otherwise, the system will keep trying to submit the action forever.
+The \textbf{Action Manager} is constantly taking new elements from the queue and passing them to the \textbf{Action Submitter} threads that submit the actions to Hadoop. The decision to add actions that have been in the \textit{PROCESSING} state for a long time to the queue makes the design of the Action Submitter more careful. The submitter first attempts to update the state of the action to \textit{SUBMITTED}. If it succeeds, then it actually submits the action to Hadoop. If there is an error while submitting the action, then it changes the state of the action back to \textit{READY}, which gives that action the opportunity to be picked again by an \textbf{Action Scraper} at some time in the future. As an area of future improvement, a ceiling should be imposed over the number of times that a failing action is resubmitted to the cluster, or otherwise, the system will keep trying to submit the action forever.
 
 \section{The Workflow Manager}
-The \textbf{Workflow Manager} receives the workflows submitted to the system and determines which of the actions from the workflow need to actually be submitted to Hadoop for computation. Those actions are inserted into the database and can initially be in one of two states: \textit{WAITING} or \textit{READY}. If they are in a $READY$ state, any active \textbf{Action Manager} will pick them up and submit them to the cluster for computation. If they are in a $WAITING$ state they will eventually be submitted for execution once their parents finish executing. The process of how actions in the $WAITING$ state are notified that their parents finish executing is discussed later in section \ref{sec:callback_system}.
+The \textbf{Workflow Manager} receives the workflows submitted to the system and determines which of the actions from the workflow need to actually be submitted to Hadoop for computation. Those actions are inserted into the database and can initially be in one of two states: \textit{WAITING} or \textit{READY}. If they are in a $READY$ state, any active \textbf{Action Manager} will pick them up and submit them to the cluster for computation. If they are in a $WAITING$ state, it means that some of their dependencies have not been computed yet. The actions will eventually be submitted for execution once their parents finish executing. The process of how actions in the $WAITING$ state are notified that their parents finish executing is discussed later in section \ref{sec:callback_system}.
 
 \subsection{Datasets}
-The \textbf{Workflow Manager} makes its decision on whether an action needs to be computed or not by exploring the state of the dataset that is the output of the action.  A dataset entity is an entry of a dataset information in the database; its dataset file is the physical file in the distributed file system. A dataset entry is always linked in the database to its corresponding action definition. Dataset entities can be in one of the following states at any given time: \textit{TO\_DELETE}, \textit{TO\_STORE}, \textit{TO\_LEAF}, \textit{STORED}, $LEAF$, $STORED\_TO\_DELETE$, $PROCESSING$, $DELETING$ and $DELETED$. (See Table \ref{tab:dataset_states} for a complete reference).
+The \textbf{Workflow Manager} queries for the state of the output dataset of an action to determine if the action needs to be computer or not.  A dataset entity is an entry of a dataset information in the database; its dataset file is the physical file in the distributed file system. A dataset entry is always linked in the database to its corresponding action definition since the dataset path is the same as the hash of its corresponding action description. Dataset entities can be in one of the following states at any given time: \textit{TO\_DELETE}, \textit{TO\_STORE}, \textit{TO\_LEAF}, \textit{STORED}, $LEAF$, $STORED\_TO\_DELETE$, $PROCESSING$, $DELETING$ and $DELETED$. (See Table \ref{tab:dataset_states} for a complete reference).
 
 \begin{table}
 \begin{tabular}{| l | p{12cm} |}
@@ -295,7 +296,7 @@ DELETED & The dataset file has been deleted. \\ \hline
 \caption{Dataset State Descriptions.\label{tab:dataset_states}}
 \end{table}
 
-The \textbf{Workflow Manager} processes all the actions of the submitted workflow, \textbf{starting from the leaf actions} in a Breadth-First-Search (BFS) manner. If by analyzing the action it determines that the action needs to be computed, it calls the \textit{prepareForComputation} procedure on that action.  The \textit{prepareForComputation} procedure first creates an action object $P$ in the \textit{WAITING} state and inserts it to the database. Also, for each children $C$ of action $P$ that also needs to be computed, the system marks on the database that $C$ is depending on $P$, so that $C$ will need to wait for $P$'s output dataset before being ready to be computed. At last, the procedure adds all the parents of the action P to the queue if they have not already being added.
+The \textbf{Workflow Manager} processes all the actions of the submitted workflow, \textbf{starting from the leaf actions} in a Breadth-First-Search manner. If by analyzing the action it determines that the action needs to be computed, it calls the \textit{prepareForComputation} procedure on that action.  The \textit{prepareForComputation} procedure first creates an action object $P$ in the \textit{WAITING} state and inserts it to the database. Also, for each children $C$ of action $P$ that also needs to be computed, the system marks on the database that $C$ is depending on $P$, so that $C$ will need to wait for $P$'s output dataset before being ready to be computed. At last, the procedure adds all the parents of the action P to the queue if they have not already being added.
 
 The \textbf{Workflow Manager} makes the determination if an action needs to be computed as described in Algorithm \ref{alg:workflow_manager}
 
@@ -309,19 +310,20 @@ The \textbf{Workflow Manager} makes the determination if an action needs to be c
 \If {A.isManaged==False \textbf{OR} A.forceComputation == True}
 	\State $prepareForComputation(A)$
 \Else
-	\State $D \gets dataset(A)$ \Comment{$D$ is the dataset that corresponds to $A$}
-	\If {D == null OR D.state is one of [DELETED, DELETING, PROCESSING, TO\_DELETE, STORED\_TO\_DELETE]}
+	\State $D \gets dataset(A)$ 
+	\If {D == null OR D.state is one of 
+	[DELETED, DELETING, PROCESSING, TO\_DELETE, STORED\_TO\_DELETE]}
 		\State $prepareForComputation(A)$
 	\Else
 		\If {D.state is one of [STORED, LEAF]}
 			\If {A is a leaf action but D.state == STORED}
-				\State $D.state \gets LEAF$ \Comment{In this way the dataset cannot now be marked to be deleted by the Decision Algorithm.}
+				\State $D.state \gets LEAF$
 				
 			\EndIf
 			
 			\For{each child C of action A}
 				\If {C was marked for computation when processed}
-					\State $addClaim(C, D)$ \Comment{Marks in database that action C depends on D.  No dataset can be deleted if it has a pending claim.}		
+					\State $addClaim(C, D)$ 
 					\If {addClaim(C, D) fails because D.state has changed}
 						\State $prepareForComputation(A)$
 					\EndIf
@@ -340,9 +342,9 @@ The \textbf{Workflow Manager} makes the determination if an action needs to be c
 \end{singlespace}
 \end{algorithm}
 
-Three different behaviors of the algorithms described above deserve closer attention. First, on the \textit{prepareForComputation} procedure, the system marks on the database that an action $C$ is depending on an action $P$. This is needed so that the \textbf{Callback Mechanism} (which will be described later) can find which are the actions depending on action $P$ when action $A$ finishes computing.
+Three different behaviors of the algorithms described above deserve closer attention. First, on the \textit{prepareForComputation} procedure, the system marks on the database that an action $C$ is depending on an action $P$. This is needed so that the \textbf{Callback Mechanism} (which will be described later) can find which are the actions depending on action $P$ when action $P$ finishes computing.
 
-Secondly, on the Workflow Manager algorithm, there is a command described as $addClaim(C, D)$. What this does is to add a claim from child $C$ to the dataset entity $D$ in the database, so that the \textbf{Dataset Deletor} system (to be described later) does not delete dataset $D$ while there is an action that depends on it that whose computation has not been carried yet.
+Secondly, on the Workflow Manager algorithm, there is a command described as $addClaim(C, D)$. That command adds a claim from child $C$ to the dataset entity $D$ in the database, so that the \textbf{Dataset Deletor} system (to be described later) does not delete dataset $D$ while there is an action that depends on it whose computation has not been carried yet.
 
 Thirdly, for the sake of correctness of the overall state of the system, I have introduced an inefficiency in the Workflow Manager's algorithm. Notice that if a dataset $D$ is in $TO\_STORE$ or $TO\_LEAF$ state, the algorithm still prepares action $A$ for computation. A dataset $D$ is in $TO\_STORE$ or $TO\_LEAF$ state if its corresponding action is currently computing given dataset. This means that some other workflow submitted to the system is currently computing dataset $D$. To make the system more efficient, instead of asking the system to recompute action $A$, one could make all the children actions of $A$ to depend on $A'$ (the equivalent action to action $A$, but from another workflow), and add a claim from the child actions of $A$ to dataset $D$. The problem with this approach is that both action $A'$ and dataset $D$ could be having their states changed to something contrary to the current situation at the same time that the state of the children of action $A$ is being changed with outdated information on the states of $A'$ and $D$. Trying to handle that situation would translate into the introduction of more complex synchronization mechanisms across multiple components of the system. For now the benefits of simplicity outweight the efficiency gains of trying to improve a situation that happens rarely.
 
@@ -351,30 +353,30 @@ Thirdly, for the sake of correctness of the overall state of the system, I have 
 The submission of an action to the Hadoop cluster includes three callbacks. Hadoop can use them to notify back to the system of any relevant event regarding the execution of the action's computations. The three callbacks are designed in such a way that the state of the action remains the same even after multiple calls to the same callback.
 
 \subsection{The Success Callback}
-The first thing the success callback does is to change from $WAITING$ to $READY$ the state of any child actions of the currently finished action that are not waiting for any other parent action to finish. It also changes the state of the currently finished action to $FINISHED$. The callback also removes any claims the currently finished action may have had over datasets. Finally, the callback updates the state and metadata of the dataset outputted by the currently finished action, changing it from $TO\_STORE$, $TO\_LEAF$ or $TO\_DELETE$ to $STORED$, $LEAF$ or $STORED\_TO\_DELETE$ accordingly. Also, it updates the size the dataset occupies in the filesystem. That size is an important metric used by the optimization algorithm.
+The first thing the Success Callback does is to change from $WAITING$ to $READY$ the state of any child actions of the currently finished action that are not waiting for any other parent action to finish. It also changes the state of the currently finished action to $FINISHED$. The callback also removes any claims the currently finished action may have had over datasets. Finally, the callback updates the state and metadata of the dataset outputted by the currently finished action, changing it from $TO\_STORE$, $TO\_LEAF$ or $TO\_DELETE$ to $STORED$, $LEAF$ or $STORED\_TO\_DELETE$ accordingly. Also, it updates the size the dataset occupies in the filesystem. That size is an important metric used by the optimization algorithm.
 
 \subsection{The Action Failed Callback}
-The action failed callback is simpler than the success callback. It removes any claims that the failed action may have had over any datasets. If the action that failed produced any output or partial output, it changes the output dataset's state to $STORED\_TO\_DELETE$ regardless of the previous state of the dataset. Also, it changes the state of the action itself to $FAILED$.
+The Action Failed callback is simpler than the success callback. It removes any claims that the failed action may have had over any datasets. If the action that failed produced any output or partial output, it changes the output dataset's state to $STORED\_TO\_DELETE$ regardless of the previous state of the dataset. Also, it changes the state of the action itself to $FAILED$.
 
 \subsection{The Action Killed Callback}
-The action killed callback removes any claims that the killed action may have had over any datasets. If the action that was killed produced any output or partial output, it changes that output's dataset state to $STORED\_TO\_DELETE$ regardless of the previous state of the dataset. Also, the state of the action itself is changed to $KILLED$.
+The Action Killed callback removes any claims that the killed action may have had over any datasets. If the action that was killed produced any output or partial output, it changes that output's dataset state to $STORED\_TO\_DELETE$ regardless of the previous state of the dataset. Also, the state of the action itself is changed to $KILLED$.
 
 \section{The Dataset Manager}
-The dataset manager takes care of handling the deletion of datasets from the file system. Its architecture is similar to the architecture of the Action Manager:
+The \textbf{Dataset Manager} handles the deletion of datasets from the file system. Its architecture is similar to the architecture of the \textbf{Action Manager}:
 
 \begin{enumerate}
-\item The Dataset Manager maintains a synchronized queue Q with the datasets that need to be deleted from the cluster. The queue is capacity bounded and supports operations that wait for the queue to become non-empty when retrieving an element, and wait for space to become available in the queue when storing an element. All operations are thread save.
-\item The queue is filled by a Dataset Scraper entity that queries the database for datasets ready to be deleted.
-\item The Dataset Manager takes dataset entries inserted to the queue and hands them to a pool of Dataset Deletor threads that remove the datasets from the cluster and update those datasets' states accordingly.
+\item The \textbf{Dataset Manager} maintains a synchronized queue L with the datasets that need to be deleted from the cluster. The queue is capacity-bounded and supports operations that wait for the queue to become non-empty when retrieving an element, and wait for space to become available in the queue when storing an element. All operations are thread save.
+\item The queue is filled by a \textbf{Dataset Scraper} process that queries the database for datasets ready to be deleted.
+\item The \textbf{Dataset Manager} takes dataset entries inserted to queue L and hands them to a pool of \textbf{Dataset Deletor} threads that remove the datasets from the cluster and update those datasets' states accordingly.
 \end{enumerate}
 
 \subsection{The Dataset Scraper}
-Every certain time, the \textbf{Dataset Scraper} queries the database to find available datasets to be deleted and add them to the queue. Datasets to delete are those in the $STORED\_TO\_DELETE$ state, or datasets that have been in the $DELETING$ or $PROCESSING$ state for a long time. The reason why it queries for datasets that have been in the $DELETING$ or $PROCESSING$ state for a long time is to account for the rare case where another \textbf{Dataset Manager} in another process could have began processing those actions, but that process died before finish processing them.
+Every certain time, the \textbf{Dataset Scraper} queries the database to find available datasets to be deleted and add them to the queue. Datasets to delete are those in the $STORED\_TO\_DELETE$ state, or datasets that have been in the $DELETING$ or $PROCESSING$ state for a long time. The reason why it queries for datasets that have been in the $DELETING$ or $PROCESSING$ state for a long time is to account for the rare case where another \textbf{Dataset Manager} in another process could have began processing those datasets, but that process died before finishing to process them.
 
-Before adding the dataset to the queue, the dataset scraper attempts to update the state of the dataset in the database to $PROCESSING$. If the update fails because the dataset entity has changed in the database after it was queried by the scraper, then the scraper drops the dataset and does not add it to the Dataset Manager queue. Otherwise, if the update is successful, the action is added to the Dataset Manager queue.
+Before adding the dataset to queue L, the \textbf{Dataset Scraper} attempts to update the state of the dataset in the database to $PROCESSING$. If the update fails because the dataset entity has changed in the database after it was queried by the scraper, then the scraper drops the dataset and does not add it to the \textbf{Dataset Manager} queue. Otherwise, if the update is successful, the action is added to the \textbf{Dataset Manager} queue.
 
 \subsection{The Dataset Deletor}
-The Dataset Manager constantly takes new elements from the queue to pass them to the Dataset Deletor threads that remove them from the distributed filesystem. The deletor first attempts to update the state of the dataset to $DELETING$. If it succeeds, then it actually deletes the dataset from the file system and updates its state to $DELETED$. If it does not succeed, or if some other error occurs while deleting so that it cannot delete, it changes the state of the dataset back to $STORED\_TO\_DELETE$ and stops processing it.
+The \textbf{Dataset Manager} constantly takes new elements from the queue to pass them to the \textbf{Dataset Deletor} threads that remove them from the distributed filesystem. The deletor first attempts to update the state of the dataset to $DELETING$. If it succeeds, then it actually deletes the dataset from the file system and updates its state to $DELETED$. If it does not succeed, or if some other error occurs while deleting so that it cannot delete, it changes the state of the dataset back to $STORED\_TO\_DELETE$ and stops processing it.
 
 \section{The Decision Manager}
 The Decision Manager determines which of the datasets currently stored in the filesystem should be deleted. The manager has three main components that work together: A filesystem utility that determines how much space is available at the time, an Action Rolling Window system and a Decision Algorithm. The Decision Manager is implemented in such a way that the decision algorithm is a plug and play piece that can be substituted, with different algorithms optimizing for different evaluation metrics.
@@ -382,9 +384,8 @@ The Decision Manager determines which of the datasets currently stored in the fi
 The first step of the decision process is to query the file system utility to obtain the amount of space currently in use by the intermediate datasets managed by the system. If the space exceeds a certain threshold, then the decision engine begins its process:
 
 \begin{enumerate}
-\item First it obtains a list of the last N submitted actions to the system from the Action Rolling Window. Using this list of actions, it rebuilds the graph of the workflows to which this actions belonged too in a special data structure called \textbf{Simplified Workflow History}.
-\item It passes the simplified workflow history that comprises the last N submitted actions to the decision algorithm, together with the amount of space that needs to free, and the decision algorithm returns a list of datasets to delete. The sum of the storage space of the returned datasets will be at least the amount of space to be freed.
+\item First it obtains a list of the last N submitted actions to the system from the Action Rolling Window. Using this list of actions, it rebuilds the graph of the workflows to which this actions belonged to in a special data structure called \textbf{Simplified Workflow History}.
+\item It passes the Simplified Workflow History that comprises the last N submitted actions to the decision algorithm, together with the amount of space that needs to freed, and the decision algorithm returns a list of datasets to delete. The sum of the storage space of the returned datasets will be at least the amount of space to be freed.
 \item The Decision Manager changes the state of the datasets returned by the decision algorithm to $STORED\_TO\_DELETE$, leaving in the hands of the Dataset Manager the actual execution of the deletion of the datasets.
-
 \end{enumerate}
 
