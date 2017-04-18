@@ -57,10 +57,6 @@ nb\_children.mean = 2, nb\_children.std =  1, nb\_parents.mean = 1, nb\_parents.
 
 
 \subsection{Ideal Execution Time calculation}
-Most of the research done in the area of scientific workflows becomes relevant and applicable, not in the context of the \textbf{Decision System} of Pingo, but in the context of the metrics to evaluate the \textbf{Decision System}.  Most of the previous research has focused in finding optimal and near-optimal solutions to the problem of scientific workflows with constrained space, assuming that we know the entire history of the workflows that will be submitted to the system from the beginning.  In Pingo, the \textbf{Decision System} does not know the end from the beginning.  Instead, it only uses the previous workflows submitted to the system to predict how the future workflows might look like.  This different approach makes sense in fast-paced research settings where researchers don't know from the start the exact process (and hence the workflow) that they will follow in their research.
-
-For evaluation purposes it is possible to know the end from the beginning and all the research from Chapter \ref{chap:related} becomes more directly relevant to our problem.  As a future endeavor, it would be good to do a more throughout exploratory work on the scientific workflows research literature in order to apply the most relevant produced results to the evaluation of the Pingo system.
-
 This section does its little contribution to the evaluation methodology of scientific workflow systems.  It defines what is \textbf{ideal execution time of a history of workflows}.  It also discusses an algorithm on how to compute it.  
 
 Consider a sequence $H=(W_1, ..., W_n)$ of n workflows that have been submitted to the system over time, and let $S$ be the storage capacity of the file system.  In sequence $H$ time will be a discrete magnitude with $n$ time steps, and we say that $t = i$ corresponds to the time when workflow $W_i$ is submitted to the system. The effective life of dataset $d$ in sequence $H$ is defined as a tuple of time steps $(t1, t2)$, with $t1$ being the time step corresponding to the first workflow that creates dataset $d$, and  $t2$ being the time step corresponding to the last workflow that makes mention of dataset $d$ in $H$.  See Figure \ref{fig:effective_life} for an example of the effective life diagram of an hypothetical history of workflows.  Time steps are represented by vertical blue lines, and datasets are represented by horizontal black lines.  Dotted ranges in the black lines (as in dataset $d3$ and $d15$ in the figure) mean that the datasets were not part of the workflows submitted at the corresponding time steps.
@@ -142,14 +138,14 @@ This experiment reports how the computation time is affected by the amount of st
 
 Since each action will take an average of 10 seconds to finish, and its output will have an average size of 10MB, the total average time of our workflows should be 3000 seconds, and the average storage needed to save all of the actions is 3000MB.  In the experiment, the available space of the system is modified at increments of 500MB, starting at 500MB. 
 
-Figure \ref{fig:experiment1} reports the computation time of the runs as a percentage of the computation time of the runs if all computations are performed. There are many interesting comments and conclusions that are obtained from those results. First of all, as expected, the computation time of the history of workflows decreases as the available storage in the system increases.  The effect can be more easily seen in the simple algorithm.  Another noticeable result is that as the storage capacity of the system increases, the simple algorithm approaches the performance of the adaptive algorithm.
+Figure \ref{fig:experiment1} reports the computation time of the runs as a percentage of the computation time of the runs if all computations are performed. The normalized standard deviation of the multiple runs was 0.05. There are many interesting comments and conclusions that are obtained from those results. First of all, as expected, the computation time of the history of workflows decreases as the available storage in the system increases.  The effect can be more easily seen in the simple algorithm.  Another noticeable result is that as the storage capacity of the system increases, the simple algorithm approaches the performance of the adaptive algorithm.
 
 Another important conclusion that is derived from the results reported in Figure \ref{fig:experiment1} is that the adaptive algorithm is fairly robust. Its performance is not affected as much by the available storage in the system as it is the case with the simple algorithm. It is remarkable to see how it achieves excellent performance even with storage capacity at 500MB.  To place the result in perspective, in the runs with storage capacity at 500MB, the adaptive algorithm performed 6 percent worse than in the runs with storage capacity at 2000MB, where it achieved its best results.
 
 
 \begin{figure}
 \centering
-\includegraphics[scale = 1.1]{experiment1}
+\includegraphics[scale = 0.7]{experiment1}
 \caption{Computation time as storage increases}
 \label{fig:experiment1}
 \end{figure}
@@ -161,7 +157,7 @@ There are no surprises in the results of Figure \ref{fig:experiment2}.  Both, th
 
 \begin{figure}
 \centering
-\includegraphics[scale = 1.1]{experiment2}
+\includegraphics[scale = 0.7]{experiment2}
 \caption{Computation time percentage as percentage of actions from previous workflows increases}
 \label{fig:experiment2}
 \end{figure}

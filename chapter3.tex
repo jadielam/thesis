@@ -3,20 +3,27 @@
 \section{Bird's eye overview}
 The Pingo system is a group of independent processes that together manage scientific workflow computations and their outputs.  This chapter first gives a bird's eye overview of Pingo, and then explains each of the components with more detail. 
 
-From a user point of view, the interaction process proceeds as follows: The end-user defines a workflow of computation in JSON format and submits it to an endpoint of the system. But before submitting the workflow of actions to the system, the user needs to have placed the files that contain the "executables" that carry those computations in a folder in a distributed file system that is accessible to Pingo. There is a \textbf{Submission Manager} whose function is to parse the JSON description of the workflow and to analyze the directed acyclic graph of computations defined in it in order to determine which actions need to be computed.  Those actions are assigned one of two states: $WAITING$ or $READY$.
 
-There exists a process called the \textbf{Action Submitter} that is constantly pulling actions that are ready to be submitted for computation. The \textbf{Action Submitter} converts the JSON definition of the action into an XML definition that is understood by Hadoop, and submits the computation to Hadoop for execution (Hadoop here means any of the supported subsystems of the Hadoop ecosystem, such as MapReduce, Spark, Pig scripts, etc). There can be multiple \textbf{Action Submitter} processes working at the same time.  To synchronize efforts, the processes use a database as synchronization mechanism to guarantee that no action is submitted to Hadoop twice.
+\begin{figure}
+\centering
+\includegraphics[scale = 0.6]{architecture}
+\caption{Architecture of Pingo}
+\label{fig:workflow_flow}
+\end{figure}
+Figure \ref{fig:workflow_flow} shows a diagram that explains the interactions between all the components in the system. From a user point of view, the interaction process proceeds as follows: (1) The end-user defines a workflow of computation in JSON format and submits it to an endpoint of the system. But before submitting the workflow of actions to the system, the user needs to have placed the files that contain the "executables" that carry those computations in a folder in a distributed file system that is accessible to Pingo. (2) There is a \textbf{Submission Manager} whose function is to parse the JSON description of the workflow and to analyze the directed acyclic graph of computations defined in it in order to determine which actions need to be computed (because their outputs do not exist in the system). Those actions are assigned one of two states: $WAITING$ or $READY$. Those in the $WAITING$ state need as input datasets that have not been computed yet.  Those in the $READY$ state have all their dependencies solved.
 
-Another independent piece of the system is the \textbf{Callback Manager}.  When an action is submitted  to Hadoop, a callback endpoint is provided so that Hadoop can notify back Pingo with information about the computation: if it finished, failed or was killed, etc.  As a redundancy measure, the \textbf{Callback Manager} constantly polls Hadoop for information regarding each of the actions submitted for computation.  Once an action finishes computing, the \textbf{Callback Manager} updates the state of the action and of the dataset produced by the action in the database. It also updates the state of any action that depends on the output of the computation that just finished.
+There exists a process called the \textbf{Action Submitter} that is (3) constantly pulling actions that are ready to be submitted for computation. The \textbf{Action Submitter} converts the JSON definition of the action into an XML definition that is understood by Hadoop, (4) and submits the computation to Hadoop for execution (Hadoop here means any of the supported subsystems of the Hadoop ecosystem, such as MapReduce, Spark, Pig scripts, etc). There can be multiple \textbf{Action Submitter} processes working at the same time.  To synchronize efforts, the processes use a database as synchronization mechanism to guarantee that no action is submitted to Hadoop twice.
 
-The \textbf{Decision Manager} is another independent process that frequently queries the database and the file system to determine which of the datasets produced by actions should be kept in the file system, and which ones should be deleted. The Decision Manager is the predictive brain of the system, and its decisions will affect the computation time of future workflow submissions to the system.
+Another independent piece of the system is the \textbf{Callback Manager}.  (5) When an action is submitted  to Hadoop, a callback endpoint is provided so that Hadoop can notify back Pingo with information about the computation: if it finished, failed or was killed, etc.  As a redundancy measure, the \textbf{Callback Manager} constantly polls Hadoop for information regarding each of the actions submitted for computation.  (6) Once an action finishes computing, the \textbf{Callback Manager} updates the state of the action and of the dataset produced by the action in the database. It also updates the state of any action that depends on the output of the computation that just finished.
 
-The last independent process of the system is the \textbf{Dataset Manager}.  The \textbf{Dataset Manager} enforces the decisions of the \textbf{Decision Manager}.  It queries the database for actions whose state has been changed to $TO\_DELETE$. If the dataset is not currently locked by any action, it deletes it from the distributed file system.
+(7) The \textbf{Decision Manager} is another independent process that frequently queries the database and the file system to determine which of the datasets produced by actions should be kept in the file system, and which ones should be deleted. The Decision Manager is the predictive brain of the system, and its decisions will affect the computation time of future workflow submissions to the system.
+
+The last independent process of the system is the \textbf{Dataset Manager}.  The \textbf{Dataset Manager} enforces the decisions of the \textbf{Decision Manager}.  (8) It queries the database for actions whose state has been changed to $TO\_DELETE$. (9) If the dataset is not currently locked by any action, it sends a deletion request to the Namenode server of Hadoop's distributed file system.
 
 \section{The Workflow Definition Language}
- The JSON format is a good choice for the definition of workflows because its expressiveness is sufficient for the needs of Pingo, and it is also very human readable. \cite{bray2014javascript} provides a memo that defines the set of formatting rules of the JSON format.
+ The JSON format is a good choice for the definition of workflows because its expressiveness is sufficient for the needs of Pingo, and it is also very human readable. \cite{bray2014javascript} defines the set of formatting rules of the JSON format.
  
- As shown in Figure \ref{fig:workflow_definition_language}, a workflow is made of a \textbf{name}, an \textbf{start action id}, an \textbf{end action id} and a \textbf{list of actions}. 
+ As shown in Figure \ref{fig:workflow_definition_language}, a workflow is made up of a \textbf{name}, an \textbf{start action id}, an \textbf{end action id} and a \textbf{list of actions}. 
 
 \begin{figure}
 \begin{mdframed}
@@ -64,7 +71,7 @@ The workflow definition in Figure \ref{fig:workflow_definition_language} consist
 These are the constraints imposed by the system on the structure of a workflow:
 \begin{enumerate}
 \item A workflow most have at least one action.
-\item No two actions can have one same id in a workflow definition.
+\item No two actions can have the same id in a workflow definition.
 \item If an action \textit{id} is referenced somewhere in the workflow definition (they can be referenced in \textit{startActionId}, \textit{endActionId}, and within the array of \textit{parentActions}), that action must be defined in the array of actions of the workflow.
 \item The \textit{parentActions} attribute of an action will define relationships among the actions that can be represented as a directed graph. Specifically, this directed graph must be a DAG.
 \end{enumerate}
@@ -72,9 +79,9 @@ These are the constraints imposed by the system on the structure of a workflow:
 If one of the constraints is not satisfied, the application will throw an error at workflow submission time.
 
 \subsection{Actions}
-Actions must have \textit{id}, \textit{name} and \textit{type} attributes. They have two optional boolean attributes: \textit{forceComputation} and \textit{isManaged}. If \textit{forceComputation} is set to \textit{True}, it means that the action will compute its output regardless of if its dataset already exists in storage or not. If it is set to \textit{False}, it means that the system has the freedom to determine if the action will be computed or not. The default is \textit{False}.
+Actions must have \textit{id}, \textit{name} and \textit{type} attributes. They have two optional boolean attributes: \textit{forceComputation} and \textit{isManaged}. If \textit{forceComputation} is set to \textit{True}, it means that the action will compute its output regardless of whether its dataset already exists in storage or not. If it is set to \textit{False}, it means that the system has the freedom to determine if the action will be computed or not. The default is \textit{False}.
 
-If the attribute \textit{isManaged} is set to \textit{True}, it means that the path where the output of this action will be stored is determined and managed by the system. If \textit{isManaged} is set to \textit{False}, it means that the path where the output of this action will be stored is not determined or managed by the system, and that path must be provided by the user. The system needs to have Read/Write permissions to any path the user provides, otherwise, the execution of the action will fail when attempting to persist the output. The default value for \textit{isManaged} is \textit{True}. The system does not apply computation optimizations on non-managed actions.
+If the attribute \textit{isManaged} is set to \textit{True}, it means that the path where the output of this action will be stored is determined and managed by the system. If \textit{isManaged} is set to \textit{False}, it means that the path where the output of this action will be stored is not determined or managed by the system, and that the path must be provided by the user. The system needs to have Read/Write permissions to any path the user provides, otherwise, the execution of the action will fail when attempting to store the output. The default value for \textit{isManaged} is \textit{True}. The system does not apply computation optimizations on non-managed actions.
 
 Action names do not need to be unique. An action name is just a mnemonic resource to help with the recall of what the action does. Also, depending on the action type, there might be other required attributes too. Currently, Pingo has implemented functionality for two types of actions: \textbf{Command-line action} and \textbf{MapReduce v1.0 action}. Only \textbf{Command-Line actions} are fully supported. The roadmap includes adding support for \textbf{Spark actions} and \textbf{Sqoop actions}.
 
@@ -92,11 +99,11 @@ A Command Line action is a Java program to be executed by some machine in the Ha
     "additionalInput": [
     {
      "key": "sizeInMB",
-     "value": "306.709032093"
+     "value": "306"
     }, 
     {
      "key": "timeInSeconds", 
-     "value": "199.156048492"
+     "value": "199"
     }, 
     {
       "key": "nameNode", 
@@ -125,7 +132,7 @@ I}
 \end{figure}
 
 \subsection{Determining Action's output path}
-There must a one-to-one relationship between an action and its output path, therefore the output path can also serve as the identifier of an action. As described in Section \ref{sec:encryption}, it is better to search for equivalent actions using hashes of actions. A hash will derive from an action's description and from its lineage (the hashes of its parents). Algorithm \ref{alg:action_encryption} describes the procedure to produce a unique string.  It takes as input parameters $ps$ and $a$, where $ps$ is a list with the generated unique string of parents, and $a$ is the action description.  Depending on the type of Action $a$, Algorithm \ref{alg:action_encryption} uses a different subroutine to analyze the action's description. Algorithm \ref{alg:command_line_action_encryption} shows the subroutine for the Command Line Action type.
+There must a one-to-one relationship between an action and its output path, therefore the output path can also serve as the identifier of an action. As described in Section \ref{sec:encryption}, it is better to search for equivalent actions using hashes of actions. A hash will derive from an action's description and from its lineage (the hashes of its parents). Algorithm \ref{alg:action_encryption} describes the procedure to produce a unique string.  It takes as input parameters $ps$ and $a$, where $ps$ is a list with the generated unique string of parents, and $a$ is the action description.  Depending on the type of action $a$, Algorithm \ref{alg:action_encryption} uses a different subroutine to analyze the action's description. Algorithm \ref{alg:command_line_action_encryption} shows the subroutine for the Command Line Action type.
 
 \begin{algorithm}
 \begin{singlespace}
@@ -133,7 +140,7 @@ There must a one-to-one relationship between an action and its output path, ther
 \label{alg:action_encryption}
 \begin{algorithmic}[1]
 \Procedure{ActionHashing}{$ps, a$}
-\State $concatenationString \gets ""$
+\State $concatenationString \gets ``"$
 \For{parentString in ps}
 	\State $concatenationString.append(parentString)$
 	\State $concatenationString.appendSeparator()$
@@ -156,7 +163,7 @@ There must a one-to-one relationship between an action and its output path, ther
 \label{alg:command_line_action_encryption}
 \begin{algorithmic}[1]
 \Procedure{CommandLineActionHashing}{$a$}
-\State $concatenationString \gets " "$
+\State $concatenationString \gets ``"$
 \State $concatenationString.append(a.name)$
 \State $concatenationString.appendSeparator()$
 
@@ -173,7 +180,7 @@ There must a one-to-one relationship between an action and its output path, ther
 \end{algorithm}
 
 \subsubsection{Considerations to keep in mind to design subroutines for new types of actions}
-A hash subroutine for an action type behaves like a hash function of that action's description.  Only the description fields that make that action unique need to be used.  Some of the fields of the JSON description are sequences.  Consider, for example, the \textbf{additionalInput} field in Figure \ref{fig:action_parameters_ordering}.  In the case of a COMMAND\_LINE action, the order of additional input parameters matters, since they are designed to be passed as arguments to the Main class of the action.  Since order matters, the two examples of Figure \ref{fig:action_parameters_ordering} represent two actions that are not equivalent. In the case of a MAP\_REDUCE action, order in a sequence field does not matter, and both examples represent actions that are equivalent between themselves. For sequence fields where order does not matter, the hash subroutine needs to order the elements of the list alphabetically by key and then value, so that the hash value that corresponds to the action description is the same, no matter the order of the elements in the list.
+A hash subroutine for an action type behaves like a hash function of that action's description.  Only the description fields that make that action unique need to be used.  Some of the fields of the JSON description are sequences.  Consider, for example, the \textbf{additionalInput} field in Figure \ref{fig:action_parameters_ordering}.  In the case of a COMMAND\_LINE action, the order of additional input parameters matters, since they are designed to be passed as arguments to the Main class of the action.  Since order matters, the two examples of Figure \ref{fig:action_parameters_ordering} represent two actions that are not equivalent. In the case of a MAP\_REDUCE action, order in a sequence field does not matter, and both examples represent actions that are equivalent. For sequence fields where order does not matter, the hash subroutine needs to order the elements of the list alphabetically by key and then value, so that the hash value that corresponds to the action description is the same, no matter the order of the elements in the list.
 
 \begin{figure}[htbp]
 \centering
@@ -188,11 +195,11 @@ A hash subroutine for an action type behaves like a hash function of that action
     "additionalInput": [
     {
      "key": "sizeInMB",
-     "value": "306.709032093"
+     "value": "306"
     }, 
     {
      "key": "timeInSeconds", 
-     "value": "199.156048492"
+     "value": "199"
     }]
     .
     .
@@ -232,7 +239,7 @@ A hash subroutine for an action type behaves like a hash function of that action
 
 
 \section{The Action Manager}
-The \textbf{Action Manager}'s purpose is to submit individual actions to the Hadoop cluster for computation. Its current implementation in the Pingo system uses \textbf{Apache Oozie} as an intermediary. The Action Manager is safe for use in a distributed manner, since it has synchronization mechanisms that allow multiple action managers to work together.  
+The \textbf{Action Manager}'s purpose is to submit individual actions to the Hadoop cluster for computation. Its current implementation in the Pingo system uses \textbf{Apache Oozie} \citep{islam2012oozie} as an intermediary. The Action Manager is safe for use in a distributed manner, since it has synchronization mechanisms that allow multiple action managers to work together.  
 
 This is a description of its functionality:
 \begin{enumerate}
@@ -242,9 +249,16 @@ This is a description of its functionality:
 \end{enumerate}
 
 \subsection{Action States}
-In order to support a cluster of servers working as action managers and to avoid the need to add a dependency to a distributed coordination server such as \textbf{Apache Zookeper}, the system implements synchronization using the database as a shared resource.  It defines a synchronization oriented semantic for each of the different states of an action.
+In order to support a cluster of servers working as action managers and to avoid the need to add a dependency to a distributed coordination server such as \textbf{Apache Zookeper} \citep{zookeper}, the system implements synchronization using the database as a shared resource.  It defines a synchronization oriented semantic for each of the different states of an action.
 
-Actions can be in one of the following states: \textit{WAITING}, \textit{READY}, \textit{PROCESSING}, \textit{SUBMITTED}, \textit{RUNNING}, \textit{FINISHED}, \textit{FAILED}, and \textit{KILLED}.  (See Table \ref{tab:action_states} for a complete reference).
+Actions can be in one of the following states: \textit{WAITING}, \textit{READY}, \textit{PROCESSING}, \textit{SUBMITTED}, \textit{RUNNING}, \textit{FINISHED}, \textit{FAILED}, and \textit{KILLED}.  Table \ref{tab:action_states} provides a complete reference and Figure \ref{fig:action_transition_diagram} provides the transition diagram of the action states.
+
+\begin{figure}
+\centering
+\includegraphics[scale = 0.6]{action_state_diagram}
+\caption{Action state transition diagram}
+\label{fig:action_transition_diagram}
+\end{figure}
 
 \begin{table}
 \begin{tabular}{| l | p{12cm} |}
@@ -277,7 +291,15 @@ The \textbf{Action Manager} is constantly taking new elements from the queue and
 The \textbf{Workflow Manager} receives the workflows submitted to the system and determines which of the actions from the workflow need to actually be submitted to Hadoop for computation. Those actions are inserted into the database and can initially be in one of two states: \textit{WAITING} or \textit{READY}. If they are in a $READY$ state, any active \textbf{Action Manager} will pick them up and submit them to the cluster for computation. If they are in a $WAITING$ state, it means that some of their dependencies have not been computed yet. The actions will eventually be submitted for execution once their parents finish executing. The process of how actions in the $WAITING$ state are notified that their parents finish executing is discussed later in section \ref{sec:callback_system}.
 
 \subsection{Datasets}
-The \textbf{Workflow Manager} queries for the state of the output dataset of an action to determine if the action needs to be computer or not.  A dataset entity is an entry of a dataset information in the database; its dataset file is the physical file in the distributed file system. A dataset entry is always linked in the database to its corresponding action definition since the dataset path is the same as the hash of its corresponding action description. Dataset entities can be in one of the following states at any given time: \textit{TO\_DELETE}, \textit{TO\_STORE}, \textit{TO\_LEAF}, \textit{STORED}, $LEAF$, $STORED\_TO\_DELETE$, $PROCESSING$, $DELETING$ and $DELETED$. (See Table \ref{tab:dataset_states} for a complete reference).
+The \textbf{Workflow Manager} queries for the state of the output dataset of an action to determine if the action needs to be computer or not.  A dataset entity is an entry of a dataset information in the database; its dataset file is the physical file in the distributed file system. A dataset entry is always linked in the database to its corresponding action definition since the dataset path is the same as the hash of its corresponding action description. Dataset entities can be in one of the following states at any given time: \textit{TO\_DELETE}, \textit{TO\_STORE}, \textit{TO\_LEAF}, \textit{STORED}, $LEAF$, $STORED\_TO\_DELETE$, $PROCESSING$, $DELETING$ and $DELETED$. Table \ref{tab:dataset_states} provides a complete reference and Figure \ref{fig:dataset_transition_diagram} provides the transition diagram of the dataset states.
+
+
+\begin{figure}
+\centering
+\includegraphics[scale = 0.6]{dataset_state_diagram}
+\caption{Dataset state transition diagram}
+\label{fig:dataset_transition_diagram}
+\end{figure}
 
 \begin{table}
 \begin{tabular}{| l | p{12cm} |}
