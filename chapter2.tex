@@ -79,7 +79,7 @@ Another strategy that can be used to determine if an action's output already exi
 \begin{figure}
 \centering
 \includegraphics[scale = 0.5]{workflow_hash_structure}
-\caption{Hypothetical workflow and its corresponding hash structure}
+\caption{HYPOTHETICAL WORKFLOW AND ITS CORRESPONDING HASH STRUCTURE}
 \label{fig:hash_structure}
 \end{figure}
 
@@ -90,6 +90,7 @@ Another strategy that can be used to determine if an action's output already exi
 \begin{algorithmic}[1]
 \Procedure{ActionHash}{$O, P_O, h$}
         \State $concatenationString \gets ``"$
+        \State $P_O.sort()$
         \For{action $A$ in $P_O$}
                \State $concatenationString.append(ActionHash(A, P_A, h))$
         \EndFor
@@ -139,7 +140,7 @@ The interface takes the following elements as input:
 
 \item The set $D$ of datasets currently stored in the file system. 
 
-\item $s: D \to \mathbb{N} $, where $s(d_i)$ is the storage space that dataset $d_i$ occupies in the file system.
+\item $s: D \to \mathbb{N} $, where $s(d_i)$ is the storage space that dataset $d_i$ occupies in the file system.\\
 
 \item $c_H: D \to \mathbb{N}$, where $c_H(d_i)$ is the number of times that dataset $d_i$ appears in History of Workflows $H$.
 
@@ -152,7 +153,7 @@ The interface takes the following elements as input:
 \subsection{Two families of algorithms}
 Similar versions of the problem presented above have been studied in other areas of Computer Science.  For example similar problems appear in the operating systems literature in the areas of memory caches \citep{smith1982cache} and scheduling (for a survey of algorithms, see the work of \cite{ramamritham1994scheduling}). But I have found the nature of the problems in the field of web caching and prefetching to be the most similar to the data reuse problem.  Web caching and prefetching techniques play a key role in improving web performance by keeping web objects that are likely to be visited in the near future closer to the client. They exploit both the temporal and spatial locality for predicting revisiting objects. In their context, spatial locality is modeled as a graph of objects. That characteristic makes their solutions more suitable for application to the data reuse problem in workflows, since one can think of the DAG that defines the workflows as a way of representing ``spatial locality".  For excellent surveys of web caching and prefetching algorithms, see the works of \cite{wang1999survey} and \cite{ali2011survey}.
 
-This section introduces two families of algorithms that solve the problem introduced in Section \ref{sec:decision_system} with varying degrees of success. They use the most basic ideas from the caching literature referred above. Chapter \ref{chap:evaluation} introduces a methodology to evaluate the algorithms' performance from a practical standpoint.
+This section introduces two families of algorithms that solve the problem introduced in Section \ref{sec:decision_system} with varying degrees of success. They use the most basic ideas\\ from the caching literature referred above. Chapter \ref{chap:evaluation} introduces a methodology to evaluate the algorithms' performance from a practical standpoint.
 
 \subsubsection{Least Valuable Algorithm Family}
 The idea of algorithms in the Least Valuable Algorithm Family is to retain in storage the datasets with the most valuable datasets, according to some evaluation metric. Implementations of this base algorithm define their own evaluation metrics.  For example, Algorithm \ref{alg:most_commonly_used_decision} defines value as the number of times the dataset is used throughout the history of workflows times the time it takes to compute such dataset. That is a very simple definition of value, but provides the most straightforward implementation.  Algorithm \ref{alg:most_commonly_used_decision} is a good baseline to compare against.

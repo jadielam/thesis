@@ -7,7 +7,7 @@ The Pingo system is a group of independent processes that together manage scient
 \begin{figure}
 \centering
 \includegraphics[scale = 0.6]{architecture}
-\caption{Architecture of Pingo}
+\caption{ARCHITECTURE OF PINGO}
 \label{fig:workflow_flow}
 \end{figure}
 Figure \ref{fig:workflow_flow} shows a diagram that explains the interactions between all the components in the system. From a user point of view, the interaction process proceeds as follows: (1) The end-user defines a workflow of computation in JSON format and submits it to an endpoint of the system. But before submitting the workflow of actions to the system, the user needs to have placed the files that contain the "executables" that carry those computations in a folder in a distributed file system that is accessible to Pingo. (2) There is a \textbf{Submission Manager} whose function is to parse the JSON description of the workflow and to analyze the directed acyclic graph of computations defined in it in order to determine which actions need to be computed (because their outputs do not exist in the system). Those actions are assigned one of two states: $WAITING$ or $READY$. Those in the $WAITING$ state need as input datasets that have not been computed yet.  Those in the $READY$ state have all their dependencies solved.
@@ -62,7 +62,7 @@ The last independent process of the system is the \textbf{Dataset Manager}.  The
 \end{verbatim}
 \end{singlespace}
 \end{mdframed}
-\caption{Workflow definition}
+\caption{WORKFLOW DEFINITION}
 \label{fig:workflow_definition_language}
 \end{figure}
 
@@ -127,7 +127,7 @@ I}
 \end{verbatim}
 \end{singlespace}
 \end{mdframed}
-\caption{Command Line Action definition}
+\caption{COMMAND LINE ACTION DEFINITION}
 \label{fig:command_line_action_definition}
 \end{figure}
 
@@ -232,16 +232,14 @@ A hash subroutine for an action type behaves like a hash function of that action
 \end{mdframed}
 \end{minipage}
 \end{singlespace}
-\caption{Example with two different orderings of input parameters}
+\caption{EXAMPLE WITH TWO DIFFERENT ORDERINGS OF INPUT PARAMETERS}
 \label{fig:action_parameters_ordering}
 \end{figure}
 
 
 
 \section{The Action Manager}
-The \textbf{Action Manager}'s purpose is to submit individual actions to the Hadoop cluster for computation. Its current implementation in the Pingo system uses \textbf{Apache Oozie} \citep{islam2012oozie} as an intermediary. The Action Manager is safe for use in a distributed manner, since it has synchronization mechanisms that allow multiple action managers to work together.  
-
-This is a description of its functionality:
+The \textbf{Action Manager}'s purpose is to submit individual actions to the Hadoop cluster for computation. Its current implementation in the Pingo system uses \textbf{Apache Oozie} \citep{islam2012oozie} as an intermediary. The Action Manager is safe for use in a distributed manner, since it has synchronization mechanisms that allow multiple action managers to work together.  This is a description of its functionality:
 \begin{enumerate}
 \item It maintains a synchronized queue Q with the actions to be submitted to the Hadoop cluster. The queue is capacity bounded and supports operations that wait for it to become non-empty when retrieving an element and that wait for space to become available in the queue when storing an element. All operations are thread safe.
 \item The queue is filled by an \textbf{Action Scraper} entity that queries the database for actions that are ready to be submitted.
@@ -256,7 +254,7 @@ Actions can be in one of the following states: \textit{WAITING}, \textit{READY},
 \begin{figure}
 \centering
 \includegraphics[scale = 0.6]{action_state_diagram}
-\caption{Action state transition diagram}
+\caption{ACTION STATE TRANSITION DIAGRAM}
 \label{fig:action_transition_diagram}
 \end{figure}
 
@@ -297,7 +295,7 @@ The \textbf{Workflow Manager} queries for the state of the output dataset of an 
 \begin{figure}
 \centering
 \includegraphics[scale = 0.6]{dataset_state_diagram}
-\caption{Dataset state transition diagram}
+\caption{DATASET STATE TRANSITION DIAGRAM}
 \label{fig:dataset_transition_diagram}
 \end{figure}
 
